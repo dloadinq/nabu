@@ -15,7 +15,21 @@ Razor Class Library for Whisper speech-to-text in Blazor apps. Supports browser 
 
 ## Installation
 
-Nabu is not yet published as a NuGet package. Add it as a project reference:
+### NuGet (recommended)
+
+```bash
+dotnet add package Nabu.RCL --version 1.0.0-preview.2
+```
+
+Or in your `.csproj`:
+
+```xml
+<ItemGroup>
+  <PackageReference Include="Nabu.RCL" Version="1.0.0-preview.2" />
+</ItemGroup>
+```
+
+### Project reference (from source)
 
 ```xml
 <!-- MyApp.csproj -->
