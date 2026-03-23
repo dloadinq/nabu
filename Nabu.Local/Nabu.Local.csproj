@@ -1,0 +1,47 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <InvariantGlobalization>true</InvariantGlobalization>
+        <PublishAot>true</PublishAot>
+        <!--<RuntimeIdentifier>linux-x64</RuntimeIdentifier>-->
+        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
+        <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
+        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.3" />
+        <PackageReference Include="Whisper.net" Version="1.9.0" />
+        <PackageReference Include="Whisper.net.AllRuntimes" Version="1.9.0" />
+        <PackageReference Include="NAudio" Version="2.2.1" />
+    </ItemGroup>
+  
+  <ItemGroup>
+    <Content Include="Status.html">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="resources/**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="..\external\silero-vad\examples\csharp\resources\silero_vad.onnx">
+      <Link>resources\silero_vad.onnx</Link>
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+    <Content Include="models/**">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+    </Content>
+  </ItemGroup>
+  
+  <ItemGroup>
+    <ProjectReference Include="..\external\NanoWakeWord\NanoWakeWord\NanoWakeWord.csproj" />
+    <ProjectReference Include="..\external\silero-vad\examples\csharp\VadDotNet.csproj" />
+  </ItemGroup>
+    
+</Project>

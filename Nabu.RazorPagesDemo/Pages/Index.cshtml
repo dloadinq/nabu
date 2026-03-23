@@ -1,0 +1,61 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "Whisper Voice Assistant";
+}
+
+<form id="__AjaxAntiForgeryForm" method="post" style="display:none">
+    @Html.AntiForgeryToken()
+</form>
+
+<div class="row w-100 h-100 justify-content-center align-items-center">
+    <div class="col-12 col-md-8 mx-auto">
+        <h1 class="display-4 text-center">Whisper Voice Assistant</h1>
+        <component type="typeof(WhisperViewComponent)" render-mode="Static" param-ShowLanguageSelect="true"/>
+
+        <div class="text-center">
+            <p id="statusInfo" class="text-muted mt-1 mb-0 small" style="display:none"></p>
+            <div id="backendInfo" class="small text-muted mt-1 mb-0">Active backend: @WhisperConstants.BackendDetecting</div>
+        </div>
+
+        <div id="lastTranscriptionPanel" class="mt-3 p-3 bg-light border rounded" style="display:none">
+            <small class="text-muted">Transkription:</small>
+            <p id="lastTranscriptionText" class="mb-0 mt-1"></p>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script>
+        const TERMINATION_TEXT = '@WhisperConstants.TerminationText';
+        const NO_SPEECH_TEXT = '@WhisperConstants.NoRecognizableSpeechText';
+
+        function handleTranscription(transcribedText) {
+            if (!transcribedText) return;
+            const transcriptionPanel = document.getElementById('lastTranscriptionPanel');
+            const transcriptionTextElement = document.getElementById('lastTranscriptionText');
+            if (transcriptionPanel && transcriptionTextElement) {
+                transcriptionTextElement.textContent = transcribedText;
+                transcriptionPanel.style.display = 'block';
+            }
+            
+            if (transcribedText === TERMINATION_TEXT || transcribedText === NO_SPEECH_TEXT) {
+                const toastElement = document.getElementById('whisperToast');
+                if (toastElement && typeof bootstrap !== 'undefined') {
+                    document.getElementById('whisperToastBody').textContent = transcribedText;
+                    new bootstrap.Toast(toastElement).show();
+                }
+            }
+            const verificationToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
+            fetch('?handler=ForwardToAgent', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': verificationToken },
+                body: JSON.stringify({ text: transcribedText })
+            }).then(response => response.ok || console.warn('Forward failed:', response.status)).catch(error => console.warn(error));
+        }
+        window.addEventListener('whisper:transcriptionFinal', event => {
+            const finalTranscriptionText = (event.detail || '').trim();
+            if (finalTranscriptionText) handleTranscription(finalTranscriptionText);
+        });
+    </script>
+}

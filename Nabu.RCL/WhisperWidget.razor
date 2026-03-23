@@ -1,0 +1,249 @@
+@* WhisperWidget – Blazor component for voice transcription with overlay, language select, and IWhisperHandler forwarding. *@
+@inject IJSRuntime JsRuntime
+@inject IServiceProvider ServiceProvider
+@using System.Text.RegularExpressions
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IEnumerable<IWhisperHandler> WhisperHandlers
+@inject ILogger<WhisperWidget> Logger
+
+<div class="whisper-widget">
+    @if (ShowLanguageSelect)
+    {
+        <div class="text-center mb-3">
+            <select id="whisperLanguageSelect" value="@SelectedLanguage" @onchange="OnLanguageChanged"
+                    class="form-select w-auto d-inline-block mt-2" disabled="@_uiState.IsProcessing">
+                @foreach (var languageOption in WhisperLanguages.Popular)
+                {
+                    <option value="@languageOption.Key">@languageOption.Value</option>
+                }
+                @if (_languageExpanded)
+                {
+                    <option disabled>───────────</option>
+                    @foreach (var languageOption in WhisperLanguages.Extended)
+                    {
+                        <option value="@languageOption.Key">@languageOption.Value</option>
+                    }
+                }
+                else
+                {
+                    <option value="__more__">⋯ More languages</option>
+                }
+            </select>
+        </div>
+    }
+    <SpeechOverlayComponent CssClass="@(_uiState.ShowOverlay ? "speech-overlay--active" : "")">
+        <div class="speech-dialog">
+            <p class="speech-dialog__status @(IsHighlightStatus() ? "speech-dialog__status--highlight" : "") @(_uiState.IsCancelling ? "speech-dialog__status--cancel" : "")">@_uiState.OverlayStatus</p>
+
+            <div id="visualizer" class="speech-visualizer"></div>
+
+            <div class="speech-dialog__text">
+                @if (!string.IsNullOrEmpty(_uiState.OverlayText))
+                {
+                    <span class="@(_uiState.IsPreviewText ? "speech-dialog__preview" : "speech-dialog__final")">
+                    @_uiState.OverlayText
+                </span>
+                }
+            </div>
+            @if (_uiState.ShowSendButton)
+            {
+                <div class="speech-dialog__actions mt-3">
+                    <button type="button" class="btn btn-primary speech-dialog__send-btn" @onclick="OnSendClicked">
+                        Send
+                    </button>
+                </div>
+            }
+        </div>
+    </SpeechOverlayComponent>
+</div>
+
+@code {
+    /// <summary>When true, shows the language dropdown; otherwise the widget uses the Language parameter or Settings.</summary>
+    [Parameter]
+    public bool ShowLanguageSelect { get; set; }
+
+    private static readonly Regex BracketsOnlyRegex = new(@"^[\s*\[\]\(\)]+$", RegexOptions.Compiled);
+
+    private void FireAndForget(Task task) =>
+        task.ContinueWith(
+            failedTask => Logger.LogError(failedTask.Exception, "[WhisperWidget] Unhandled exception in async handler."),
+            TaskContinuationOptions.OnlyOnFaulted);
+
+    private IWhisperSettings? Settings => ServiceProvider.GetService<IWhisperSettings>();
+    private WhisperJsInterop? _whisperJsInterop;
+
+    private Action<string>? _backendHandler;
+    private Action<string>? _statusMessageHandler;
+    private Action<WhisperUIState>? _uiStateHandler;
+    private Action? _settingsLanguageChangedHandler;
+
+    private WhisperUIState _uiState = new();
+
+    private bool _languageExpanded;
+    private string _localLanguage = "english";
+    private string SelectedLanguage => Settings?.Language ?? _localLanguage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            _whisperJsInterop = new WhisperJsInterop(JsRuntime);
+
+            _uiStateHandler = (uiState) => FireAndForget(HandleUIStateChangedAsync(uiState));
+            _whisperJsInterop.OnUIStateChanged += _uiStateHandler;
+
+            await _whisperJsInterop.InitializeAsync();
+
+            var savedLanguage = await _whisperJsInterop.GetSavedLanguageAsync();
+            if (!string.IsNullOrEmpty(savedLanguage))
+            {
+                if (Settings != null)
+                    Settings.Language = savedLanguage;
+                else
+                    _localLanguage = savedLanguage;
+                await InvokeAsync(StateHasChanged);
+            }
+
+            if (Settings != null)
+            {
+                _backendHandler = (backend) => FireAndForget(HandleBackendChangedAsync(backend));
+                _statusMessageHandler = (message) => FireAndForget(HandleStatusMessageAsync(message));
+                _whisperJsInterop.OnBackendChanged += _backendHandler;
+                _whisperJsInterop.OnStatusMessage += _statusMessageHandler;
+
+                _settingsLanguageChangedHandler = () => FireAndForget(OnSettingsLanguageChangedAsync());
+                Settings.LanguageChanged += _settingsLanguageChangedHandler;
+
+                _languageExpanded = WhisperLanguages.Extended.ContainsKey(Settings.Language);
+            }
+            else
+            {
+                _languageExpanded = WhisperLanguages.Extended.ContainsKey(_localLanguage);
+            }
+
+            _whisperJsInterop.OnTranscriptionFinal += HandleFinalTextForHandlers;
+            await _whisperJsInterop.InitAppAsync();
+
+            if (ShowLanguageSelect)
+                await _whisperJsInterop.WireLanguageSelectChangeAsync();
+
+            await _whisperJsInterop.StartOnUserGestureAsync(SelectedLanguage);
+        }
+    }
+
+    private void HandleFinalTextForHandlers(string text) => FireAndForget(NotifyHandlersAsync(text));
+
+    // ReSharper disable once InconsistentNaming
+    private async Task HandleUIStateChangedAsync(WhisperUIState state)
+    {
+        _uiState = state;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleBackendChangedAsync(string backend)
+    {
+        if (Settings == null) return;
+        Settings.Backend = backend switch
+        {
+            "service"          => "Server",
+            "browser (WebGPU)" => "Browser (WebGPU)",
+            "browser (WASM)"   => "Browser (WASM)",
+            "browser"          => "Browser",
+            var rawBackend when rawBackend.StartsWith("browser", StringComparison.Ordinal) => string.Concat("B", rawBackend.AsSpan(1)),
+            _                  => backend
+        };
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleStatusMessageAsync(string message)
+    {
+        if (Settings == null) return;
+        Settings.Status = message;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnSendClicked()
+    {
+        if (_whisperJsInterop == null) return;
+        try
+        {
+            await _whisperJsInterop.FinishRecordingAsync();
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "[WhisperWidget] OnSendClicked failed.");
+        }
+    }
+
+    private async Task OnLanguageChanged(ChangeEventArgs args)
+    {
+        var selectedValue = args.Value?.ToString() ?? "english";
+        if (selectedValue == "__more__")
+        {
+            _languageExpanded = true;
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        if (Settings != null)
+            Settings.Language = selectedValue;
+        else
+            _localLanguage = selectedValue;
+
+        if (_whisperJsInterop != null)
+            await _whisperJsInterop.SetLanguageAsync(selectedValue);
+    }
+
+    private async Task OnSettingsLanguageChangedAsync()
+    {
+        if (_whisperJsInterop == null) return;
+        await _whisperJsInterop.SetLanguageAsync(SelectedLanguage);
+    }
+
+    private bool IsHighlightStatus() => _uiState.OverlayStatus is "Done." or "Keyword detected!";
+
+    private async Task NotifyHandlersAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var trimmed = text.Trim();
+        if (BracketsOnlyRegex.IsMatch(trimmed)) return;
+        if (trimmed == WhisperConstants.TerminationText || trimmed == WhisperConstants.NoRecognizableSpeechText) return;
+
+        var handlers = WhisperHandlers.ToList();
+        if (handlers.Count == 0)
+        {
+            Logger.LogError("No IWhisperHandler registered. Transcription will not be forwarded.");
+            return;
+        }
+
+        foreach (var handler in handlers)
+        {
+            try
+            {
+                await handler.OnTranscriptionReadyAsync(text);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Handler {Handler} threw during OnTranscriptionReadyAsync.", handler.GetType().Name);
+            }
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_whisperJsInterop != null)
+        {
+            if (_uiStateHandler != null) _whisperJsInterop.OnUIStateChanged -= _uiStateHandler;
+            _whisperJsInterop.OnTranscriptionFinal -= HandleFinalTextForHandlers;
+            if (_backendHandler != null) _whisperJsInterop.OnBackendChanged -= _backendHandler;
+            if (_statusMessageHandler != null) _whisperJsInterop.OnStatusMessage -= _statusMessageHandler;
+            if (Settings != null && _settingsLanguageChangedHandler != null)
+                Settings.LanguageChanged -= _settingsLanguageChangedHandler;
+            await _whisperJsInterop.DisposeAsync();
+        }
+    }
+
+}

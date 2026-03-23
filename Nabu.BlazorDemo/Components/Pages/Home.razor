@@ -1,0 +1,61 @@
+@page "/"
+@rendermode InteractiveServer
+@implements IDisposable
+@inject WhisperAgentService WhisperAgent
+@inject IWhisperSettings Settings
+
+<PageTitle>Whisper Voice Assistant</PageTitle>
+
+<div class="row w-100 h-100 justify-content-center align-items-center">
+    <div class="col-12 col-md-8 mx-auto">
+        <div class="text-center mb-3">
+            <h1 class="display-4">Whisper Voice Assistant</h1>
+            <WhisperWidget ShowLanguageSelect="true" />
+            @if (!string.IsNullOrEmpty(Settings.Status))
+            {
+                <p class="text-muted mt-1 mb-0">@Settings.Status</p>
+            }
+            <div class="small text-muted mt-1 mb-0">Active backend: @Settings.Backend</div>
+        </div>
+
+        @if (!string.IsNullOrEmpty(_lastTranscription))
+        {
+            <div class="mt-3 p-3 bg-light border rounded">
+                <small class="text-muted">Transkription:</small>
+                <p class="mb-0 mt-1">@_lastTranscription</p>
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private string _lastTranscription = "";
+
+    protected override void OnInitialized()
+    {
+        WhisperAgent.OnTranscriptionReceived += OnTranscriptionAsync;
+        Settings.StatusChanged += OnSettingsChanged;
+        Settings.BackendChanged += OnSettingsChanged;
+    }
+
+    public void Dispose()
+    {
+        WhisperAgent.OnTranscriptionReceived -= OnTranscriptionAsync;
+        Settings.StatusChanged -= OnSettingsChanged;
+        Settings.BackendChanged -= OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+
+    private async Task OnTranscriptionAsync(string text)
+    {
+        await InvokeAsync(() =>
+        {
+            _lastTranscription = text;
+            StateHasChanged();
+        });
+    }
+}

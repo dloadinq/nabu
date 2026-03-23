@@ -1,0 +1,26 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <WhisperPreferredInferenceBackend>browser</WhisperPreferredInferenceBackend>
+    </PropertyGroup>
+
+
+    <ItemGroup>
+        <SupportedPlatform Include="browser"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <PackageReference Include="Microsoft.AspNetCore.Components.Web" Version="10.0.3"/>
+    </ItemGroup>
+    
+    <ItemGroup>
+        <AssemblyAttribute Include="System.Reflection.AssemblyMetadataAttribute">
+            <_Parameter1>Whisper:PreferredInferenceBackend</_Parameter1>
+            <_Parameter2>$(WhisperPreferredInferenceBackend)</_Parameter2>
+        </AssemblyAttribute>
+    </ItemGroup>
+
+</Project>
