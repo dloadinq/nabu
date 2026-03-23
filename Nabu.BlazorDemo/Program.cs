@@ -8,9 +8,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
-builder.Services.AddScoped<IWhisperSettings, WhisperSettingsService>();
-builder.Services.AddScoped<WhisperAgentService>();
-builder.Services.AddScoped<IWhisperHandler>(sp => sp.GetRequiredService<WhisperAgentService>());
+builder.Services.AddNabu()
+    .AddHandler<WhisperAgentService>();
 
 var app = builder.Build();
 

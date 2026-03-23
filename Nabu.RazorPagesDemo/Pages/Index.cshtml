@@ -4,10 +4,6 @@
     ViewData["Title"] = "Whisper Voice Assistant";
 }
 
-<form id="__AjaxAntiForgeryForm" method="post" style="display:none">
-    @Html.AntiForgeryToken()
-</form>
-
 <div class="row w-100 h-100 justify-content-center align-items-center">
     <div class="col-12 col-md-8 mx-auto">
         <h1 class="display-4 text-center">Whisper Voice Assistant</h1>
@@ -46,10 +42,9 @@
                     new bootstrap.Toast(toastElement).show();
                 }
             }
-            const verificationToken = document.querySelector('input[name="__RequestVerificationToken"]')?.value;
             fetch('?handler=ForwardToAgent', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json', 'RequestVerificationToken': verificationToken },
+                headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ text: transcribedText })
             }).then(response => response.ok || console.warn('Forward failed:', response.status)).catch(error => console.warn(error));
         }

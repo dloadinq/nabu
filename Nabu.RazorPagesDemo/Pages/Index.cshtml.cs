@@ -4,6 +4,7 @@ using Nabu.RCL;
 
 namespace Nabu.RazorPagesDemo.Pages;
 
+[IgnoreAntiforgeryToken]
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
