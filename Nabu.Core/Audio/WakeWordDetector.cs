@@ -1,6 +1,6 @@
 using NanoWakeWord;
 
-namespace Nabu.Local.Audio;
+namespace Nabu.Core.Audio;
 
 public class WakeWordDetector : IDisposable
 {

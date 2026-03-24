@@ -1,6 +1,6 @@
 using NAudio.Wave;
 
-namespace Nabu.Local.Audio;
+namespace Nabu.Core.Audio;
 
 public class AudioRecordingSession
 {

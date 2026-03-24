@@ -1,13 +1,14 @@
 using System.Buffers;
 using System.Text.RegularExpressions;
 using System.Threading.Channels;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Options;
-using Nabu.Local.Config;
-using Nabu.Local.Transcription;
-using Nabu.Local.Vad;
+using Nabu.Core.Config;
+using Nabu.Core.Transcription;
+using Nabu.Core.Vad;
 using NanoWakeWord;
 
-namespace Nabu.Local.Audio;
+namespace Nabu.Core.Audio;
 
 public class AudioProcessingPipeline : IDisposable
 {

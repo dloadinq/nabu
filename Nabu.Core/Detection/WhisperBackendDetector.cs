@@ -1,7 +1,7 @@
 using System.Text.RegularExpressions;
 using Whisper.net.Logger;
 
-namespace Nabu.Local.Detection;
+namespace Nabu.Core.Detection;
 
 public class WhisperBackendDetector
 {

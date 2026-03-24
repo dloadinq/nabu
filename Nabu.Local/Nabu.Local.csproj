@@ -11,36 +11,32 @@
     </PropertyGroup>
 
     <ItemGroup>
-        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3" />
-        <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.3" />
-        <PackageReference Include="Whisper.net" Version="1.9.0" />
-        <PackageReference Include="Whisper.net.AllRuntimes" Version="1.9.0" />
-        <PackageReference Include="NAudio" Version="2.2.1" />
+        <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.3"/>
+        <PackageReference Include="Whisper.net.AllRuntimes" Version="1.9.0"/>
     </ItemGroup>
-  
-  <ItemGroup>
-    <Content Include="Status.html">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="resources/**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="..\external\silero-vad\src\silero_vad\data\silero_vad.onnx">
-      <Link>resources\silero_vad.onnx</Link>
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-    <Content Include="models/**">
-      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
-    </Content>
-  </ItemGroup>
-  
-  <ItemGroup>
-    <ProjectReference Include="..\external\NanoWakeWord\NanoWakeWord\NanoWakeWord.csproj" />
-    <ProjectReference Include="..\external\silero-vad\examples\csharp\VadDotNet.csproj" />
-  </ItemGroup>
-    
+
+    <ItemGroup>
+        <Content Include="Status.html">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="resources/**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="..\external\silero-vad\src\silero_vad\data\silero_vad.onnx">
+            <Link>resources\silero_vad.onnx</Link>
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+        <Content Include="models/**">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+            <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
+        </Content>
+    </ItemGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Nabu.Core\Nabu.Core.csproj"/>
+    </ItemGroup>
+
 </Project>

@@ -1,6 +1,6 @@
-using Nabu.Local.Vad;
+using Nabu.Core.Vad;
 
-namespace Nabu.Local.Audio;
+namespace Nabu.Core.Audio;
 
 public enum SpeechResult
 {

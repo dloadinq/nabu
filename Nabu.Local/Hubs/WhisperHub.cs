@@ -1,8 +1,8 @@
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.DependencyInjection;
-using Nabu.Local.Audio;
-using Nabu.Local.Transcription;
+using Nabu.Core.Audio;
+using Nabu.Core.Transcription;
 
 namespace Nabu.Local.Hubs;
 

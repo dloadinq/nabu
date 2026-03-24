@@ -1,4 +1,4 @@
-namespace Nabu.Local.Config;
+namespace Nabu.Core.Config;
 
 public class WhisperLocalOptions
 {
@@ -12,8 +12,8 @@ public class WhisperLocalOptions
 
 public class WhisperOptions
 {
-    public string GpuModelPath { get; set; } = "models/ggml-medium.bin";
-    public string CpuModelPath { get; set; } = "models/ggml-medium_q4.bin";
+    public string ModelSize { get; set; } = "";
+    public string ModelsDirectory { get; set; } = "models";
     public string Language { get; set; } = "english";
 }
 
