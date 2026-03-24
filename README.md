@@ -52,7 +52,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddNabu()
-    .AddHandler<MyWhisperHandler>();
+    .AddHandler<MyHandler>();
 ```
 
 ### 2. Add the SiriWave script to `App.razor`
@@ -75,7 +75,7 @@ Place this before the closing `</body>` tag.
 ```csharp
 using Nabu.RCL;
 
-public class MyWhisperHandler : INabuHandler
+public class MyHandler : INabuHandler
 {
     public Task OnTranscriptionReadyAsync(string text)
     {
@@ -110,7 +110,7 @@ using Nabu.RCL;
 builder.Services.AddRazorPages();
 
 builder.Services.AddNabu()
-    .AddHandler<MyWhisperHandler>();
+    .AddHandler<MyHandler>();
 ```
 
 ### 2. Add the SiriWave script to `_Layout.cshtml`
