@@ -18,14 +18,14 @@ Razor Class Library for Whisper speech-to-text in Blazor apps. Supports browser 
 ### NuGet (recommended)
 
 ```bash
-dotnet add package Nabu.RCL --version 1.0.0-preview.2
+dotnet add package Nabu.RCL --version 1.0.0-preview.3
 ```
 
 Or in your `.csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Nabu.RCL" Version="1.0.0-preview.2" />
+  <PackageReference Include="Nabu.RCL" Version="1.0.0-preview.3" />
 </ItemGroup>
 ```
 
