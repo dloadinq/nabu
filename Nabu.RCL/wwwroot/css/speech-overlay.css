@@ -1,5 +1,5 @@
 /*
- * Speech Overlay – shared styles for WhisperWidget (Blazor) and WhisperViewComponent (static).
+ * Speech Overlay – shared styles for Nabu (Blazor) and NabuViewComponent (static).
  *
  * Customise any value by setting the corresponding CSS custom property on an
  * ancestor element (e.g. :root, or the host page's <body>).

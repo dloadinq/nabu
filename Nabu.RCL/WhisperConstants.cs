@@ -18,7 +18,7 @@ public static class WhisperConstants
 
     /// <summary>
     /// Displayed while the active backend (Server / Browser / WebGPU / WASM) is being detected.
-    /// Used by both Blazor (via IWhisperSettings) and RazorPages (WhisperViewComponent).
+    /// Used by both Blazor (via INabuSettings) and RazorPages (NabuViewComponent).
     /// </summary>
     public const string BackendDetecting = "detecting...";
 }

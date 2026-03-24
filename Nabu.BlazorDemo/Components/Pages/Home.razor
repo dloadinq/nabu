@@ -1,8 +1,8 @@
 @page "/"
-@rendermode InteractiveServer
 @implements IDisposable
-@inject WhisperAgentService WhisperAgent
-@inject IWhisperSettings Settings
+@rendermode InteractiveServer
+@inject SampleAgentService SampleAgent
+@inject INabuSettings Settings
 
 <PageTitle>Whisper Voice Assistant</PageTitle>
 
@@ -10,7 +10,7 @@
     <div class="col-12 col-md-8 mx-auto">
         <div class="text-center mb-3">
             <h1 class="display-4">Whisper Voice Assistant</h1>
-            <WhisperWidget ShowLanguageSelect="true" />
+            <Nabu ShowLanguageSelect="true" />
             @if (!string.IsNullOrEmpty(Settings.Status))
             {
                 <p class="text-muted mt-1 mb-0">@Settings.Status</p>
@@ -33,14 +33,14 @@
 
     protected override void OnInitialized()
     {
-        WhisperAgent.OnTranscriptionReceived += OnTranscriptionAsync;
+        SampleAgent.OnTranscriptionReceived += OnTranscriptionAsync;
         Settings.StatusChanged += OnSettingsChanged;
         Settings.BackendChanged += OnSettingsChanged;
     }
 
     public void Dispose()
     {
-        WhisperAgent.OnTranscriptionReceived -= OnTranscriptionAsync;
+        SampleAgent.OnTranscriptionReceived -= OnTranscriptionAsync;
         Settings.StatusChanged -= OnSettingsChanged;
         Settings.BackendChanged -= OnSettingsChanged;
     }

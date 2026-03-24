@@ -18,6 +18,7 @@
 
     <ItemGroup>
         <SupportedPlatform Include="browser"/>
+        <FrameworkReference Include="Microsoft.AspNetCore.App"/>
     </ItemGroup>
 
     <ItemGroup>

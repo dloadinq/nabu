@@ -1,10 +1,10 @@
 namespace Nabu.RCL;
 
 /// <summary>
-/// Default implementation of <see cref="IWhisperSettings"/>.
-/// Register as scoped (per circuit): builder.Services.AddScoped&lt;IWhisperSettings, WhisperSettingsService&gt;()
+/// Default implementation of <see cref="INabuSettings"/>.
+/// Register as scoped (per circuit): builder.Services.AddScoped&lt;INabuSettings, WhisperSettingsService&gt;()
 /// </summary>
-public class WhisperSettingsService : IWhisperSettings
+public class WhisperSettingsService : INabuSettings
 {
     public string Language
     {

@@ -2,7 +2,7 @@ using Nabu.RCL;
 
 namespace Nabu.BlazorDemo;
 
-public class WhisperAgentService : IWhisperHandler
+public class SampleAgentService : INabuHandler
 {
     public event Func<string, Task>? OnTranscriptionReceived;
 

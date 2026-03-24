@@ -9,7 +9,7 @@ builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
 
 builder.Services.AddNabu()
-    .AddHandler<WhisperAgentService>();
+    .AddHandler<SampleAgentService>();
 
 var app = builder.Build();
 

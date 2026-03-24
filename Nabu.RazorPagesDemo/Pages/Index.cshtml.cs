@@ -8,9 +8,9 @@ namespace Nabu.RazorPagesDemo.Pages;
 public class IndexModel : PageModel
 {
     private readonly ILogger<IndexModel> _logger;
-    private readonly IWhisperHandler _whisperHandler;
+    private readonly INabuHandler _whisperHandler;
 
-    public IndexModel(ILogger<IndexModel> logger, IWhisperHandler whisperHandler)
+    public IndexModel(ILogger<IndexModel> logger, INabuHandler whisperHandler)
     {
         _logger = logger;
         _whisperHandler = whisperHandler;

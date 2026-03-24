@@ -2,11 +2,11 @@ using Nabu.RCL;
 
 namespace Nabu.RazorPagesDemo;
 
-public class WhisperAgentService : IWhisperHandler
+public class SampleAgentService : INabuHandler
 {
-    private readonly ILogger<WhisperAgentService> _logger;
+    private readonly ILogger<SampleAgentService> _logger;
 
-    public WhisperAgentService(ILogger<WhisperAgentService> logger)
+    public SampleAgentService(ILogger<SampleAgentService> logger)
     {
         _logger = logger;
     }
@@ -16,7 +16,7 @@ public class WhisperAgentService : IWhisperHandler
         if (string.Equals(text, WhisperConstants.TerminationText, StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
-        _logger.LogInformation("WhisperAgentService received: {Text}", text);
+        _logger.LogInformation("SampleAgentService received: {Text}", text);
 
         return Task.CompletedTask;
     }

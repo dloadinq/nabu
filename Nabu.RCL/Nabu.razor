@@ -1,4 +1,5 @@
-@* WhisperWidget – Blazor component for voice transcription with overlay, language select, and IWhisperHandler forwarding. *@
+@* Nabu – Blazor component for voice transcription with overlay, language select, and INabuHandler forwarding. *@
+@rendermode @(new Microsoft.AspNetCore.Components.Web.InteractiveServerRenderMode())
 @inject IJSRuntime JsRuntime
 @inject IServiceProvider ServiceProvider
 @using System.Text.RegularExpressions
@@ -6,8 +7,8 @@
 @using Microsoft.Extensions.Logging
 @using Microsoft.JSInterop
 @implements IAsyncDisposable
-@inject IEnumerable<IWhisperHandler> WhisperHandlers
-@inject ILogger<WhisperWidget> Logger
+@inject IEnumerable<INabuHandler> WhisperHandlers
+@inject ILogger<Nabu> Logger
 
 <div class="whisper-widget">
     @if (ShowLanguageSelect)
@@ -69,10 +70,10 @@
 
     private void FireAndForget(Task task) =>
         task.ContinueWith(
-            failedTask => Logger.LogError(failedTask.Exception, "[WhisperWidget] Unhandled exception in async handler."),
+            failedTask => Logger.LogError(failedTask.Exception, "[Nabu] Unhandled exception in async handler."),
             TaskContinuationOptions.OnlyOnFaulted);
 
-    private IWhisperSettings? Settings => ServiceProvider.GetService<IWhisperSettings>();
+    private INabuSettings? Settings => ServiceProvider.GetService<INabuSettings>();
     private WhisperJsInterop? _whisperJsInterop;
 
     private Action<string>? _backendHandler;
@@ -174,7 +175,7 @@
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "[WhisperWidget] OnSendClicked failed.");
+            Logger.LogError(ex, "[Nabu] OnSendClicked failed.");
         }
     }
 
@@ -215,7 +216,7 @@
         var handlers = WhisperHandlers.ToList();
         if (handlers.Count == 0)
         {
-            Logger.LogError("No IWhisperHandler registered. Transcription will not be forwarded.");
+            Logger.LogError("No INabuHandler registered. Transcription will not be forwarded.");
             return;
         }
 

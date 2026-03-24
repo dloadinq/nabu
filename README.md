@@ -55,12 +55,27 @@ builder.Services.AddNabu()
     .AddHandler<MyWhisperHandler>();
 ```
 
-### 2. Implement `IWhisperHandler`
+### 2. Add the SiriWave script to `App.razor`
+
+```html
+<!-- App.razor -->
+<script src="https://cdn.jsdelivr.net/npm/siriwave/dist/siriwave.umd.min.js"></script>
+```
+
+Place this before the closing `</body>` tag.
+
+### 3. Add the `@using` directive to `_Import.razor`
+
+```razor
+@using Nabu.RCL
+```
+
+### 4. Implement `INabuHandler`
 
 ```csharp
 using Nabu.RCL;
 
-public class MyWhisperHandler : IWhisperHandler
+public class MyWhisperHandler : INabuHandler
 {
     public Task OnTranscriptionReadyAsync(string text)
     {
@@ -72,18 +87,15 @@ public class MyWhisperHandler : IWhisperHandler
 }
 ```
 
-### 3. Add `WhisperWidget` to a page
+### 5. Add `Nabu` to a page
 
 ```razor
 @page "/"
-@rendermode InteractiveServer
-@inject IWhisperSettings Settings
 
-<WhisperWidget ShowLanguageSelect="true" />
-
-<p>Status: @Settings.Status</p>
-<p>Backend: @Settings.Backend</p>
+<Nabu ShowLanguageSelect="true" />
 ```
+
+No `@rendermode` needed — the component sets `InteractiveServer` automatically.
 
 ---
 
@@ -101,11 +113,27 @@ builder.Services.AddNabu()
     .AddHandler<MyWhisperHandler>();
 ```
 
-### 2. Add `WhisperViewComponent` to a page
+### 2. Add the SiriWave script to `_Layout.cshtml`
+
+```html
+<!-- _Layout.cshtml -->
+<script src="https://cdn.jsdelivr.net/npm/siriwave/dist/siriwave.umd.min.js"></script>
+```
+
+Place this before the closing `</body>` tag.
+
+### 3. Add the `@using` and `@addTagHelper` directives to `_ViewImports.cshtml`
+
+```razor
+@using Nabu.RCL
+@addTagHelper *, Nabu.RCL
+```
+
+### 4. Add `<nabu>` to a page
 
 ```html
 <!-- Index.cshtml -->
-<component type="typeof(WhisperViewComponent)" render-mode="Static" param-ShowLanguageSelect="true" />
+<nabu show-language-select="true"></nabu>
 
 <script>
     window.addEventListener('whisper:transcriptionFinal', event => {
@@ -199,7 +227,7 @@ All available variables are listed in `Nabu.RCL/wwwroot/css/speech-overlay.css`.
 
 ## Component parameters
 
-### `WhisperWidget` / `WhisperViewComponent`
+### `Nabu` / `NabuView`
 
 | Parameter            | Type   | Default | Description                    |
 |----------------------|--------|---------|--------------------------------|

@@ -1,7 +1,7 @@
 namespace Nabu.RCL;
 
 /// <summary>
-/// Static language definitions for the Whisper UI (WhisperWidget, WhisperViewComponent).
+/// Static language definitions for the Whisper UI (Nabu, NabuViewComponent).
 /// </summary>
 public static class WhisperLanguages
 {
