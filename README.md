@@ -251,6 +251,20 @@ Nabu.Local/          # Optional server service (Whisper.net + SignalR)
 Nabu.BlazorDemo/     # Demo: Blazor Server
 Nabu.RazorPagesDemo/ # Demo: Razor Pages
 external/
-  silero-vad/        # Voice Activity Detection
-  NanoWakeWord/      # Wake-word detection
+  silero-vad/        # Voice Activity Detection (git submodule)
+  NanoWakeWord/      # Wake-word detection (git submodule)
+```
+
+### Cloning with submodules
+
+The `external/` dependencies are git submodules. Clone with:
+
+```bash
+git clone --recurse-submodules https://github.com/daniel-lerch/nabu.git
+```
+
+If you already cloned without `--recurse-submodules`, run:
+
+```bash
+git submodule update --init
 ```

@@ -7,7 +7,6 @@
         <InvariantGlobalization>true</InvariantGlobalization>
         <PublishAot>true</PublishAot>
         <!--<RuntimeIdentifier>linux-x64</RuntimeIdentifier>-->
-        <RuntimeIdentifier>linux-x64</RuntimeIdentifier>
         <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
     </PropertyGroup>
 

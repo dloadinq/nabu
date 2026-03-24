@@ -1,0 +1,7 @@
+[submodule "external/NanoWakeWord"]
+	path = external/NanoWakeWord
+	url = https://github.com/samartzidis/NanoWakeWord.git
+
+[submodule "external/silero-vad"]
+	path = external/silero-vad
+	url = https://github.com/snakers4/silero-vad.git
