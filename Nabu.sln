@@ -12,6 +12,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NanoWakeWord", "external\Na
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "VadDotNet", "external\silero-vad\examples\csharp\VadDotNet.csproj", "{5ABC3064-CB9C-43A7-A3BD-5468FF040F28}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "Nabu.Core", "Nabu.Core\Nabu.Core.csproj", "{562453EA-3CA6-415C-BC51-7DAA2B644331}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -42,5 +44,9 @@ Global
 		{5ABC3064-CB9C-43A7-A3BD-5468FF040F28}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{5ABC3064-CB9C-43A7-A3BD-5468FF040F28}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{5ABC3064-CB9C-43A7-A3BD-5468FF040F28}.Release|Any CPU.Build.0 = Release|Any CPU
+		{562453EA-3CA6-415C-BC51-7DAA2B644331}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{562453EA-3CA6-415C-BC51-7DAA2B644331}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{562453EA-3CA6-415C-BC51-7DAA2B644331}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{562453EA-3CA6-415C-BC51-7DAA2B644331}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

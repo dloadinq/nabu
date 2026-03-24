@@ -1,17 +1,14 @@
 using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
-using NanoWakeWord;
-using Nabu.Local;
-using Nabu.Local.Audio;
-using Nabu.Local.Config;
-using Nabu.Local.Detection;
+using Nabu.Core.Config;
 using Nabu.Local.Hubs;
-using Nabu.Local.Transcription;
-using Nabu.Local.Vad;
+using Nabu.Core.Models;
+using Nabu.Core.Transcription;
+using Nabu.Local;
 
-var backendDetector = new WhisperBackendDetector();
-backendDetector.AttachToWhisperLogs();
+if (!string.Equals(Directory.GetCurrentDirectory(), AppContext.BaseDirectory, StringComparison.Ordinal))
+    Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
@@ -30,55 +27,37 @@ builder.Services.ConfigureHttpJsonOptions(options =>
 
 builder.Services.Configure<WhisperLocalOptions>(builder.Configuration.GetSection(WhisperLocalOptions.SectionName));
 
-if (!string.Equals(Directory.GetCurrentDirectory(), AppContext.BaseDirectory, StringComparison.Ordinal))
-{
-    Directory.SetCurrentDirectory(AppContext.BaseDirectory);
-}
+var whisperConfig = builder.Configuration.GetSection("WhisperLocal:Whisper");
+var modelSize = whisperConfig["ModelSize"] ?? "";
+var modelsDirectory = whisperConfig["ModelsDirectory"] ?? "models";
+var language = whisperConfig["Language"] ?? "english";
 
-builder.Services.AddSingleton(backendDetector);
-builder.Services.AddSingleton<IWhisperTranscriber>(sp =>
-{
-    var opts = sp.GetRequiredService<IOptions<WhisperLocalOptions>>().Value;
-    var logger = sp.GetRequiredService<ILogger<WhisperService>>();
-    return new WhisperService(opts.Whisper.Language, opts.Whisper.GpuModelPath, opts.Whisper.CpuModelPath, logger);
-});
-builder.Services.AddScoped<IVadDetector>(sp =>
-{
-    var opts = sp.GetRequiredService<IOptions<WhisperLocalOptions>>().Value;
-    var vadOptions = opts.Vad;
-    return new SileroVadDetectorAdapter(vadOptions.ModelPath, vadOptions.Threshold, vadOptions.SamplingRate, vadOptions.MinSpeechDurationMs,
-        vadOptions.MaxSpeechDurationSeconds, vadOptions.MinSilenceDurationMs, vadOptions.SpeechPadMs);
-});
-builder.Services.AddSingleton(sp =>
-{
-    var opts = sp.GetRequiredService<IOptions<WhisperLocalOptions>>().Value;
-    var wakeWordOptions = opts.WakeWord;
-    return new WakeWordRuntime(new WakeWordRuntimeConfig
-    {
-        WakeWords = [new WakeWordConfig { Model = wakeWordOptions.Model, Threshold = wakeWordOptions.Threshold }],
-        StepFrames = wakeWordOptions.StepFrames
-    });
-});
+if (string.IsNullOrWhiteSpace(modelSize))
+    modelSize = ModelManager.PromptModelSize(modelsDirectory);
+
+var gpu = ModelManager.DetectGpu();
+var resolvedModelPath = await ModelManager.EnsureModelAsync(modelSize, modelsDirectory);
+
+builder.Services.AddSingleton(gpu);
+builder.Services.AddAudioServices(language, resolvedModelPath);
 
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("WhisperLocalCors", policy => 
+    options.AddPolicy("WhisperLocalCors", policy =>
         policy
             .SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials()
-        );
+    );
 });
-
-builder.Services.AddScoped<AudioProcessingPipeline>();
 
 var app = builder.Build();
 
 app.UseCors("WhisperLocalCors");
 
-app.MapGet("/", (WhisperBackendDetector detector, IOptions<WhisperLocalOptions> opts) 
-    => StatusPageHandler.GetStatusPage(detector, opts.Value));
+app.MapGet("/", (GpuInfo gpuInfo, IOptions<WhisperLocalOptions> opts)
+    => StatusPageHandler.GetStatusPage(gpuInfo, opts.Value));
 app.MapGet("/blast", () => Results.Ok("Missed. Again."));
 app.MapHub<WhisperHub>("/voiceHub");
 

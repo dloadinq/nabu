@@ -1,17 +1,17 @@
-using Nabu.Local.Config;
-using Nabu.Local.Detection;
+using Nabu.Core.Config;
+using Nabu.Core.Models;
 
 namespace Nabu.Local;
 
 internal static class StatusPageHandler
 {
     public static IResult GetStatusPage(
-        WhisperBackendDetector backendDetector,
+        GpuInfo gpuInfo,
         WhisperLocalOptions options)
     {
         var rid = System.Runtime.InteropServices.RuntimeInformation.RuntimeIdentifier;
         var os = System.Runtime.InteropServices.RuntimeInformation.OSDescription;
-        var api = backendDetector.GetDisplayLabel();
+        var api = gpuInfo.Label;
 
         var statusHtmlPath = Path.Combine(AppContext.BaseDirectory, options.StatusHtmlPath);
         var html = File.Exists(statusHtmlPath)
