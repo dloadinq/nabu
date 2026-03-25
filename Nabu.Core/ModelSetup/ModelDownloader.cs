@@ -1,14 +1,15 @@
 using System.Diagnostics;
 
-namespace Nabu.Core.Models;
+namespace Nabu.Core.ModelSetup;
 
-internal record SpeedSample(long ElapsedMs, long BytesDownloaded);
+public record SpeedSample(long ElapsedMs, long BytesDownloaded);
 
-internal static class ModelDownloader
+public static class ModelDownloader
 {
     private const int BarWidth = 28;
 
-    public static async Task DownloadAsync(Stream source, Stream destination, long expectedTotalBytes)
+    public static async Task DownloadAsync(Stream source, Stream destination, object consoleLock,
+        long expectedTotalBytes)
     {
         var buffer = new byte[81920];
         long downloaded = 0;
@@ -16,6 +17,7 @@ internal static class ModelDownloader
 
         var speedWindow = new Queue<SpeedSample>();
         var stopwatch = Stopwatch.StartNew();
+        double lastSpeed = 0;
 
         while ((bytesRead = await source.ReadAsync(buffer)) > 0)
         {
@@ -25,9 +27,11 @@ internal static class ModelDownloader
             long elapsedMs = stopwatch.ElapsedMilliseconds;
             UpdateSpeedWindow(speedWindow, elapsedMs, downloaded);
 
-            double bytesPerSecond = ComputeSpeed(speedWindow, downloaded, elapsedMs);
-            Console.Write(BuildProgressLine(downloaded, expectedTotalBytes, bytesPerSecond));
+            lastSpeed = ComputeSpeed(speedWindow, downloaded, elapsedMs);
+            lock (consoleLock) Console.Write(BuildProgressLine(downloaded, expectedTotalBytes, lastSpeed));
         }
+
+        lock (consoleLock) Console.Write(BuildProgressLine(downloaded, downloaded, lastSpeed));
     }
 
     private static string BuildProgressLine(long downloaded, long totalBytes, double bytesPerSecond)

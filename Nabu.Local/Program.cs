@@ -3,7 +3,9 @@ using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Nabu.Core.Config;
 using Nabu.Local.Hubs;
+using Nabu.Core.Hardware;
 using Nabu.Core.Models;
+using Nabu.Core.ModelSetup;
 using Nabu.Core.Transcription;
 using Nabu.Local;
 
@@ -32,13 +34,21 @@ var modelSize = whisperConfig["ModelSize"] ?? "";
 var modelsDirectory = whisperConfig["ModelsDirectory"] ?? "models";
 var language = whisperConfig["Language"] ?? "english";
 
-if (string.IsNullOrWhiteSpace(modelSize))
-    modelSize = ModelManager.PromptModelSize(modelsDirectory);
-
 var gpu = ModelManager.DetectGpu();
-var resolvedModelPath = await ModelManager.EnsureModelAsync(modelSize, modelsDirectory);
+
+if (string.IsNullOrWhiteSpace(modelSize))
+{
+    modelSize = ModelManager.PromptModelSize(modelsDirectory, gpu);
+    if (modelSize is null) return;
+}
+
+var (resolvedModelPath, loadedModel) = await ModelManager.EnsureModelAsync(modelSize, modelsDirectory, gpu);
+
+Console.Clear();
+Console.WriteLine($"Model: {loadedModel.DisplayName}");
 
 builder.Services.AddSingleton(gpu);
+builder.Services.AddSingleton(loadedModel);
 builder.Services.AddAudioServices(language, resolvedModelPath);
 
 builder.Services.AddCors(options =>
@@ -56,16 +66,38 @@ var app = builder.Build();
 
 app.UseCors("WhisperLocalCors");
 
-app.MapGet("/", (GpuInfo gpuInfo, IOptions<WhisperLocalOptions> opts)
-    => StatusPageHandler.GetStatusPage(gpuInfo, opts.Value));
+app.MapGet("/", (GpuInfo gpuInfo, LoadedModelInfo loadedModel, IOptions<WhisperLocalOptions> opts)
+    => StatusPageHandler.GetStatusPage(gpuInfo, loadedModel, opts.Value));
 app.MapGet("/blast", () => Results.Ok("Missed. Again."));
 app.MapHub<WhisperHub>("/voiceHub");
 
 var whisper = app.Services.GetRequiredService<IWhisperTranscriber>();
+
+using var cts = new CancellationTokenSource();
+var animTask = AnimateInitAsync(cts.Token);
 await whisper.EnsureInitializedAsync();
+await cts.CancelAsync();
+await animTask;
 
 Console.Clear();
 app.Run();
+
+static async Task AnimateInitAsync(CancellationToken ct)
+{
+    var frames = new[] { ".  ", ".. ", "..." };
+    var row = Console.CursorTop;
+    var i = 0;
+    try
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            Console.SetCursorPosition(0, row);
+            Console.Write($"Initializing model{frames[i++ % 3]}");
+            await Task.Delay(400, ct);
+        }
+    }
+    catch (OperationCanceledException) { }
+}
 
 [JsonSerializable(typeof(string))]
 [JsonSerializable(typeof(byte[]))]

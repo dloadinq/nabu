@@ -11,6 +11,7 @@
         <PackageReference Include="Microsoft.Extensions.Options" Version="9.0.0" />
         <PackageReference Include="NAudio" Version="2.2.1" />
         <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.24.3" />
+        <PackageReference Include="System.Management" Version="10.0.5" />
         <PackageReference Include="Whisper.net" Version="1.9.0" />
     </ItemGroup>
 

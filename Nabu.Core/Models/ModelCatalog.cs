@@ -2,11 +2,11 @@ using Whisper.net.Ggml;
 
 namespace Nabu.Core.Models;
 
-internal record ModelInfo(GgmlType GgmlType, string BaseName, long GpuSizeBytes, long Q4SizeBytes);
+public record ModelInfo(GgmlType GgmlType, string BaseName, long GpuSizeBytes, long Q4SizeBytes);
 
-internal static class ModelCatalog
+public static class ModelCatalog
 {
-    internal static readonly Dictionary<string, ModelInfo> Models =
+    public static readonly Dictionary<string, ModelInfo> Models =
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["tiny"] = new(GgmlType.Tiny, "ggml-tiny", 79_000_000, 32_000_000),
@@ -16,7 +16,7 @@ internal static class ModelCatalog
             ["large"] = new(GgmlType.LargeV3, "ggml-large-v3", 3_094_000_000, 1_080_000_000),
         };
 
-    internal static readonly ModelMenuEntry[] MenuEntries =
+    public static readonly ModelMenuEntry[] MenuEntries =
     [
         Entry("tiny", "tiny\t- fastest, least accurate"),
         Entry("base", "base\t- fast, decent accuracy"),
@@ -24,6 +24,32 @@ internal static class ModelCatalog
         Entry("medium", "medium\t- good accuracy"),
         Entry("large", "large\t- best accuracy, slowest"),
     ];
+
+    private const double VramBufferFactor = 0.10;
+    private const long VramBufferMinMb = 100;
+
+    public static long GetBufferMb(long vramFreeMb) =>
+        Math.Max((long)(vramFreeMb * VramBufferFactor), VramBufferMinMb);
+
+    public static string? GetRecommendedSize(long? vramFreeMb)
+    {
+        if (vramFreeMb is null) return null;
+        var usableBytes = (vramFreeMb.Value - GetBufferMb(vramFreeMb.Value)) * 1024 * 1024;
+        return Models
+            .OrderByDescending(kv => kv.Value.GpuSizeBytes)
+            .FirstOrDefault(kv => kv.Value.GpuSizeBytes <= usableBytes)
+            .Key;
+    }
+
+    public static HashSet<string> GetUnavailableSizes(long? vramFreeMb)
+    {
+        if (vramFreeMb is null) return [];
+        var usableBytes = (vramFreeMb.Value - GetBufferMb(vramFreeMb.Value)) * 1024 * 1024;
+        return Models
+            .Where(kv => kv.Value.GpuSizeBytes > usableBytes)
+            .Select(kv => kv.Key)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
 
     private static ModelMenuEntry Entry(string size, string label)
     {
