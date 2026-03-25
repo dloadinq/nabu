@@ -31,7 +31,7 @@ public class AudioProcessingPipeline : IDisposable
     private readonly SemaphoreSlim _finalizeLock = new(1, 1);
 
     private DateTime _lastPreviewTime = DateTime.MinValue;
-    private const int LivePreviewIntervalMs = 3000;
+    private const int LivePreviewIntervalMs = 1000;
     private const int MaxQueuedChunks = 64;
 
     public event Action<string>? OnWakeWordDetected;
