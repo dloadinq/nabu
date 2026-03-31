@@ -2,6 +2,29 @@
 
 Razor Class Library for Whisper speech-to-text in Blazor apps. Supports browser (WebGPU/WASM) and server backends.
 
+## Getting Started
+
+### Cloning the Project
+This project uses Git submodules for heavy dependencies. Use the following command to clone everything:
+
+```bash
+git clone --recurse-submodules https://github.com/daniel-lerch/nabu.git
+cd nabu
+```
+
+### Optimizing Submodules (Sparse-Checkout)
+To avoid downloading unnecessary files and to prevent build conflicts with Native AOT (e.g., in `silero-vad`), use **Sparse-Checkout**. After cloning, run these commands:
+
+```bash
+# Setup Silero VAD to only include C# examples and the ONNX model
+cd external/silero-vad
+git sparse-checkout set --cone
+git sparse-checkout set examples/csharp src/silero_vad/data/silero_vad.onnx
+cd ../..
+```
+
+---
+
 ## Features
 
 - **Dual-backend**: Automatically switches between browser inference (WebGPU/WASM) and server inference (Whisper.net via SignalR)
@@ -32,9 +55,8 @@ Or in your `.csproj`:
 ### Project reference (from source)
 
 ```xml
-<!-- MyApp.csproj -->
 <ItemGroup>
-  <ProjectReference Include="../Nabu.RCL/Nabu.RCL.csproj" />
+  <ProjectReference Include="../src/Nabu.RCL/Nabu.RCL.csproj" />
 </ItemGroup>
 ```
 
@@ -58,7 +80,6 @@ builder.Services.AddNabu()
 ### 2. Add the SiriWave script to `App.razor`
 
 ```html
-<!-- App.razor -->
 <script src="https://cdn.jsdelivr.net/npm/siriwave/dist/siriwave.umd.min.js"></script>
 ```
 
@@ -116,7 +137,6 @@ builder.Services.AddNabu()
 ### 2. Add the SiriWave script to `_Layout.cshtml`
 
 ```html
-<!-- _Layout.cshtml -->
 <script src="https://cdn.jsdelivr.net/npm/siriwave/dist/siriwave.umd.min.js"></script>
 ```
 
@@ -132,7 +152,6 @@ Place this before the closing `</body>` tag.
 ### 4. Add `<nabu>` to a page
 
 ```html
-<!-- Index.cshtml -->
 <nabu show-language-select="true"></nabu>
 
 <script>
@@ -172,7 +191,7 @@ For server-side inference via Whisper.net, run `Nabu.Local` as a separate servic
 ### Start
 
 ```bash
-cd Nabu.Local
+cd src/Nabu.Local
 dotnet run
 # Listens on http://localhost:50000 by default
 ```
@@ -221,7 +240,7 @@ Override the overlay appearance with CSS custom properties:
 }
 ```
 
-All available variables are listed in `Nabu.RCL/wwwroot/css/speech-overlay.css`.
+All available variables are listed in `src/Nabu.RCL/wwwroot/css/speech-overlay.css`.
 
 ---
 
@@ -229,8 +248,8 @@ All available variables are listed in `Nabu.RCL/wwwroot/css/speech-overlay.css`.
 
 ### `Nabu` / `NabuView`
 
-| Parameter            | Type   | Default | Description                    |
-|----------------------|--------|---------|--------------------------------|
+| Parameter            | Type   | Default | Description                      |
+|----------------------|--------|---------|----------------------------------|
 | `ShowLanguageSelect` | `bool` | `false` | Show language selection dropdown |
 
 ---
@@ -246,25 +265,13 @@ Popular: English, German, French, Spanish, Italian, Portuguese, Chinese, Japanes
 ## Project structure
 
 ```
-Nabu.RCL/            # Razor Class Library (main library)
-Nabu.Local/          # Optional server service (Whisper.net + SignalR)
-Nabu.BlazorDemo/     # Demo: Blazor Server
-Nabu.RazorPagesDemo/ # Demo: Razor Pages
+src/
+  Nabu.RCL/            # Razor Class Library (main library)
+  Nabu.Local/          # Optional server service (Whisper.net + SignalR)
+examples/
+  Nabu.BlazorDemo/     # Demo: Blazor Server
+  Nabu.RazorPagesDemo/ # Demo: Razor Pages
 external/
-  silero-vad/        # Voice Activity Detection (git submodule)
-  NanoWakeWord/      # Wake-word detection (git submodule)
-```
-
-### Cloning with submodules
-
-The `external/` dependencies are git submodules. Clone with:
-
-```bash
-git clone --recurse-submodules https://github.com/daniel-lerch/nabu.git
-```
-
-If you already cloned without `--recurse-submodules`, run:
-
-```bash
-git submodule update --init
+  silero-vad/          # Voice Activity Detection (git submodule, sparse)
+  NanoWakeWord/        # Wake-word detection (git submodule)
 ```
