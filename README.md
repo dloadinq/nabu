@@ -8,7 +8,7 @@ Razor Class Library for Whisper speech-to-text in Blazor apps. Supports browser 
 This project uses Git submodules for heavy dependencies. Use the following command to clone everything:
 
 ```bash
-git clone --recurse-submodules https://github.com/daniel-lerch/nabu.git
+git clone --recurse-submodules https://github.com/dloadinq/nabu.git
 cd nabu
 ```
 
@@ -18,8 +18,7 @@ To avoid downloading unnecessary files and to prevent build conflicts with Nativ
 ```bash
 # Setup Silero VAD to only include C# examples and the ONNX model
 cd external/silero-vad
-git sparse-checkout set --cone
-git sparse-checkout set examples/csharp src/silero_vad/data/silero_vad.onnx
+git sparse-checkout set --no-cone "/examples/csharp/*" "/src/silero_vad/data/silero_vad.onnx"
 cd ../..
 ```
 
