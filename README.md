@@ -20,6 +20,11 @@ To avoid downloading unnecessary files and to prevent build conflicts with Nativ
 cd external/silero-vad
 git sparse-checkout set --no-cone "/examples/csharp/*" "/src/silero_vad/data/silero_vad.onnx"
 cd ../..
+
+# 2. Setup NanoWakeWord (only the core library folder)
+cd external/NanoWakeWord
+git sparse-checkout set --no-cone "/NanoWakeWord/*"
+cd ../..
 ```
 
 ---
