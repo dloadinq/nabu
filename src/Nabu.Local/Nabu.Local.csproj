@@ -25,7 +25,7 @@
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>
         <Content Include="..\..\external\silero-vad\src\silero_vad\data\silero_vad.onnx">
-            <Link>resources\silero_vad.onnx</Link>
+            <Link>models\silero_vad.onnx</Link>
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
             <CopyToPublishDirectory>PreserveNewest</CopyToPublishDirectory>
         </Content>

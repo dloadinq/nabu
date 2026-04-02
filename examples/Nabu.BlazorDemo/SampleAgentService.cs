@@ -1,4 +1,4 @@
-using Nabu.RCL;
+using Nabu;
 
 namespace Nabu.BlazorDemo;
 

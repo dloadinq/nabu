@@ -2,8 +2,12 @@ using Microsoft.Extensions.Options;
 using NanoWakeWord;
 using Nabu.Core.Audio;
 using Nabu.Core.Config;
+using Nabu.Core.Kws;
 using Nabu.Core.Transcription;
 using Nabu.Core.Vad;
+using Nabu.Inference.Kws;
+using Nabu.Inference.Transcription;
+using Nabu.Inference.Vad;
 
 namespace Nabu.Local;
 
@@ -22,25 +26,19 @@ internal static class AudioServiceExtensions
 
         services.AddScoped<IVadDetector>(sp =>
         {
-            var vad = sp.GetRequiredService<IOptions<WhisperLocalOptions>>().Value.Vad;
-            return new SileroVadDetectorAdapter(
-                vad.ModelPath,
-                vad.Threshold,
-                vad.SamplingRate,
-                vad.MinSpeechDurationMs,
-                vad.MaxSpeechDurationSeconds,
-                vad.MinSilenceDurationMs,
-                vad.SpeechPadMs);
+            var vad = sp.GetRequiredService<IOptions<NabuLocalOptions>>().Value.Vad;
+            return new SileroVadDetectorAdapter(vad.ModelPath, vad.SamplingRate);
         });
-
-        services.AddSingleton(sp =>
+        
+        services.AddScoped<IWakeWordDetector>(sp =>
         {
-            var wakeWord = sp.GetRequiredService<IOptions<WhisperLocalOptions>>().Value.WakeWord;
-            return new WakeWordRuntime(new WakeWordRuntimeConfig
+            var wakeWord = sp.GetRequiredService<IOptions<NabuLocalOptions>>().Value.WakeWord;
+            var runtime = new WakeWordRuntime(new WakeWordRuntimeConfig
             {
-                WakeWords  = [new WakeWordConfig { Model = wakeWord.Model, Threshold = wakeWord.Threshold }],
+                WakeWords = [new WakeWordConfig { Model = wakeWord.Model, Threshold = wakeWord.Threshold }],
                 StepFrames = wakeWord.StepFrames
             });
+            return new WakeWordDetector(runtime);
         });
 
         services.AddScoped<AudioProcessingPipeline>();

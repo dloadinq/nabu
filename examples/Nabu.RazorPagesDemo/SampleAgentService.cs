@@ -1,4 +1,4 @@
-using Nabu.RCL;
+using Nabu;
 
 namespace Nabu.RazorPagesDemo;
 
@@ -13,7 +13,7 @@ public class SampleAgentService : INabuHandler
 
     public Task OnTranscriptionReadyAsync(string text)
     {
-        if (string.Equals(text, WhisperConstants.TerminationText, StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(text, NabuConstants.TerminationText, StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
         _logger.LogInformation("SampleAgentService received: {Text}", text);

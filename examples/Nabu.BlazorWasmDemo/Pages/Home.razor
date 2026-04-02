@@ -1,0 +1,43 @@
+﻿@page "/"
+@implements IDisposable
+@inject INabuSettings Settings
+
+<PageTitle>Home</PageTitle>
+
+<div class="container">
+    <div class="row">
+        <div class="col-12">
+            <div class="text-center mb-3">
+                <h1 class="display-4">Nabu Voice Assistant</h1>
+                <NabuAssistant ShowLanguageSelect="true"/>
+                @if (!string.IsNullOrEmpty(Settings.Status))
+                {
+                    <p class="text-muted mt-1 mb-0">@Settings.Status</p>
+                }
+                <div class="small text-muted mt-1 mb-0">Active backend: @Settings.Backend</div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<NabuAssistant/>
+
+@code {
+    
+    protected override void OnInitialized()
+    {
+        Settings.StatusChanged += OnSettingsChanged;
+        Settings.BackendChanged += OnSettingsChanged;
+    }
+
+    public void Dispose()
+    {
+        Settings.StatusChanged -= OnSettingsChanged;
+        Settings.BackendChanged -= OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged()
+    {
+        _ = InvokeAsync(StateHasChanged);
+    }
+}

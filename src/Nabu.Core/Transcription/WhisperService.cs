@@ -1,43 +1,47 @@
 using System.Text;
 using Microsoft.Extensions.Logging;
+using Nabu.Inference.Transcription;
 using Whisper.net;
 
 namespace Nabu.Core.Transcription;
 
-public class WhisperService : IWhisperTranscriber, IDisposable
+/// <summary>
+/// Implements <see cref="IWhisperTranscriber"/> using the Whisper.net library with a GGML model file.
+/// Maintains separate <c>WhisperProcessor</c> instances for transcription and translation to avoid
+/// reconfiguring the processor between calls. Lazy initialisation defers the (potentially slow) model
+/// load until the first audio chunk is processed.
+/// </summary>
+/// <remarks>
+/// All public members are thread-safe. Concurrent transcription and translation calls are serialised
+/// via an internal semaphore to comply with Whisper.net's single-threaded processor requirement.
+/// </remarks>
+public class WhisperService(string language, string modelPath, ILogger<WhisperService> logger)
+    : IWhisperTranscriber, IAsyncDisposable
 {
-    private string _whisperLanguage;
-    private readonly string _modelPath;
-    private readonly ILogger<WhisperService> _logger;
     private readonly SemaphoreSlim _transcribeLock = new(1, 1);
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
-    public WhisperProcessor? Processor { get; private set; }
+    private WhisperFactory? _factory;
+    private WhisperProcessor? _transcribeProcessor;
+    private WhisperProcessor? _translateProcessor;
+    private string _language = language;
+    private bool _initialized;
 
-    private WhisperFactory? _whisperFactory;
-    private bool _whisperInitialized;
-
-    public WhisperService(string whisperLanguage, string modelPath, ILogger<WhisperService> logger)
+    /// <inheritdoc/>
+    public bool IsInitialized()
     {
-        _whisperLanguage = whisperLanguage;
-        _modelPath = modelPath;
-        _logger = logger;
+        return _initialized;
     }
 
-    public async Task<WhisperProcessor> InitializeWhisperAsync()
-    {
-        await EnsureInitializedAsync();
-        return Processor!;
-    }
-
+    /// <inheritdoc/>
     public async Task EnsureInitializedAsync()
     {
-        if (_whisperInitialized) return;
+        if (_initialized) return;
         await _initLock.WaitAsync();
         try
         {
-            if (_whisperInitialized) return;
-            await InitializeCoreAsync();
+            if (_initialized) return;
+            Initialize();
         }
         finally
         {
@@ -45,42 +49,39 @@ public class WhisperService : IWhisperTranscriber, IDisposable
         }
     }
 
-    private Task InitializeCoreAsync()
+    private void Initialize()
     {
-        if (!File.Exists(_modelPath))
-            throw new FileNotFoundException($"Whisper model not found: {Path.GetFullPath(_modelPath)}");
+        if (!File.Exists(modelPath))
+            throw new FileNotFoundException($"Whisper model not found: {Path.GetFullPath(modelPath)}");
 
-        _logger.LogDebug("Loading Whisper model: {Path}", _modelPath);
-        _whisperFactory = WhisperFactory.FromPath(_modelPath);
-        Processor = _whisperFactory.CreateBuilder()
-            .WithLanguage(_whisperLanguage)
-            .Build();
-        _whisperInitialized = true;
-        _logger.LogDebug("Whisper initialized: {Path}", _modelPath);
-        return Task.CompletedTask;
+        _factory = WhisperFactory.FromPath(modelPath);
+        BuildProcessors();
+        _initialized = true;
     }
 
+    private void BuildProcessors()
+    {
+        _transcribeProcessor?.Dispose();
+        _translateProcessor?.Dispose();
+        _transcribeProcessor = _factory!.CreateBuilder().WithLanguage(_language).Build();
+        _translateProcessor = _factory!.CreateBuilder().WithLanguage(_language).WithTranslate().Build();
+    }
+
+    /// <inheritdoc/>
     public async Task SetLanguageAsync(string language)
     {
-        if (string.Equals(_whisperLanguage, language, StringComparison.OrdinalIgnoreCase))
-            return;
+        if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase)) return;
 
         await _transcribeLock.WaitAsync();
         try
         {
-            if (string.Equals(_whisperLanguage, language, StringComparison.OrdinalIgnoreCase))
-                return;
+            if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase)) return;
+            logger.LogInformation("Language changed: {Old} -> {New}", _language, language);
+            _language = language;
 
-            _whisperLanguage = language;
-            _logger.LogInformation("Language changed to: {Language}", language);
-
-            if (_whisperInitialized && _whisperFactory != null)
+            if (_initialized && _factory != null)
             {
-                Processor?.Dispose();
-                Processor = _whisperFactory.CreateBuilder()
-                    .WithLanguage(_whisperLanguage)
-                    .Build();
-                _logger.LogInformation("Whisper processor rebuilt with language: {Language}", language);
+                BuildProcessors();
             }
         }
         finally
@@ -89,43 +90,82 @@ public class WhisperService : IWhisperTranscriber, IDisposable
         }
     }
 
-    public void Dispose()
-    {
-        Processor?.Dispose();
-        _whisperFactory?.Dispose();
-        _whisperInitialized = false;
-    }
-
-    public bool IsInitialized() => _whisperInitialized;
-
+    /// <summary>
+    /// Transcribes a WAV audio stream using the currently configured language.
+    /// </summary>
+    /// <param name="audioStream">A seekable WAV stream containing 16 kHz mono PCM audio.</param>
+    /// <returns>The transcribed text, or an empty string if no speech was detected.</returns>
     public async Task<string> TranscribeAsync(Stream audioStream)
     {
-        return await TranscribeWithLanguageAsync(audioStream, _whisperLanguage);
+        return await TranscribeWithLanguageAsync(audioStream, _language);
     }
 
+    /// <inheritdoc/>
     public async Task<string> TranscribeWithLanguageAsync(Stream audioStream, string language)
     {
         await _transcribeLock.WaitAsync();
         try
         {
-            if (!_whisperInitialized || Processor == null)
-                await EnsureInitializedAsync();
-
-            if (!string.Equals(_whisperLanguage, language, StringComparison.OrdinalIgnoreCase) && _whisperFactory != null)
-            {
-                _whisperLanguage = language;
-                Processor?.Dispose();
-                Processor = _whisperFactory.CreateBuilder().WithLanguage(_whisperLanguage).Build();
-            }
-
-            var transcriptionBuilder = new StringBuilder();
-            await foreach (var result in Processor!.ProcessAsync(audioStream))
-                transcriptionBuilder.Append(result.Text);
-            return transcriptionBuilder.ToString().Trim();
+            await EnsureInitializedAsync();
+            RebuildIfLanguageChanged(language);
+            var result = await RunProcessorAsync(_transcribeProcessor!, audioStream);
+            return result;
         }
         finally
         {
             _transcribeLock.Release();
         }
     }
+
+    /// <inheritdoc/>
+    public async Task<string> TranslateToEnglishAsync(Stream audioStream, string language)
+    {
+        await _transcribeLock.WaitAsync();
+        try
+        {
+            await EnsureInitializedAsync();
+            RebuildIfLanguageChanged(language);
+            return await RunProcessorAsync(_translateProcessor!, audioStream);
+        }
+        finally
+        {
+            _transcribeLock.Release();
+        }
+    }
+
+    private void RebuildIfLanguageChanged(string language)
+    {
+        if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase) || _factory == null)
+            return;
+
+        _language = language;
+        BuildProcessors();
+    }
+
+    private static async Task<string> RunProcessorAsync(WhisperProcessor processor, Stream audioStream)
+    {
+        var sb = new StringBuilder(256);
+        await foreach (var result in processor.ProcessAsync(audioStream))
+            sb.Append(result.Text);
+        return sb.ToString().Trim();
+    }
+    
+    public async ValueTask DisposeAsync()
+    {
+        await _transcribeLock.WaitAsync();
+        try
+        {
+            if (_transcribeProcessor != null) await _transcribeProcessor.DisposeAsync();
+            if (_translateProcessor != null) await _translateProcessor.DisposeAsync();
+            _factory?.Dispose();
+        }
+        finally
+        {
+            _transcribeLock.Release();
+        }
+
+        _transcribeLock.Dispose();
+        _initLock.Dispose();
+    }
+
 }

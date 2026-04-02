@@ -7,7 +7,8 @@
     </PropertyGroup>
 
     <ItemGroup>
-      <ProjectReference Include="..\..\src\Nabu.RCL\Nabu.RCL.csproj" />
+        <ProjectReference Include="..\..\src\Nabu.Server\Nabu.Server.csproj" />
+        <ProjectReference Include="..\..\src\Nabu\Nabu.csproj"/>
     </ItemGroup>
 
 </Project>

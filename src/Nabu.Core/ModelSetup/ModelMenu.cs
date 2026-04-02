@@ -2,11 +2,36 @@ using Nabu.Core.Models;
 
 namespace Nabu.Core.ModelSetup;
 
+/// <summary>
+/// Renders an interactive console menu for selecting a Whisper model size and inference mode (GPU vs CPU).
+/// Highlights recommended sizes, marks unavailable sizes due to insufficient VRAM, and shows installed model tags.
+/// </summary>
 public static class ModelMenu
 {
     private const int IndentWidth = 2;
+
+    /// <summary>Standard indentation prefix applied to all menu output lines.</summary>
     public static readonly string Indent = "".PadRight(IndentWidth);
 
+    /// <summary>
+    /// Displays the model selection menu and blocks until the user makes a choice or quits.
+    /// Supports toggling between GPU and CPU mode when a GPU is available.
+    /// </summary>
+    /// <param name="entries">Array of menu entries to display, one per model size.</param>
+    /// <param name="modelsDirectory">Directory checked for already-downloaded model files.</param>
+    /// <param name="recommendedSize">
+    /// Size key to annotate as recommended based on available VRAM. <c>null</c> suppresses the annotation.
+    /// </param>
+    /// <param name="unavailableSizes">
+    /// Set of size keys that cannot fit in VRAM, shown with a warning. <c>null</c> means no restrictions.
+    /// </param>
+    /// <param name="vramFreeMb">Free VRAM in MB, displayed in the header.</param>
+    /// <param name="vramTotalMb">Total VRAM in MB, used to compute the utilisation percentage shown in the header.</param>
+    /// <param name="gpuLabel">GPU display label shown in the header, or <c>null</c> for CPU-only systems.</param>
+    /// <param name="cpuName">CPU name shown in the header when available.</param>
+    /// <returns>
+    /// The user's <see cref="ModelSelection"/>, or <c>null</c> if the user pressed Q or Escape to quit.
+    /// </returns>
     public static ModelSelection? Prompt(
         ModelMenuEntry[] entries,
         string modelsDirectory,

@@ -1,0 +1,315 @@
+@* NabuAssistant - Blazor component for voice transcription with overlay, language select, and INabuHandler forwarding. *@
+@inject IJSRuntime JsRuntime
+@inject IServiceProvider ServiceProvider
+@using System.Text.RegularExpressions
+@using Microsoft.AspNetCore.Components.Routing
+@using Microsoft.Extensions.DependencyInjection
+@using Microsoft.Extensions.Logging
+@using Microsoft.JSInterop
+@implements IAsyncDisposable
+@inject IEnumerable<INabuHandler> NabuHandlers
+@inject IEnumerable<INabuCommandHandler> CommandHandlers
+@inject ILogger<NabuAssistant> Logger
+@inject CommandDefinitionsProvider CommandDefinitions
+@inject NavigationManager NavigationManager
+
+<link rel="stylesheet" href="/_content/Nabu/css/toast.css"/>
+
+<div class="nabu-widget">
+    @if (ShowLanguageSelect)
+    {
+        <div class="text-center mb-3">
+            <select id="nabuLanguageSelect" 
+                    class="form-select w-auto d-inline-block mt-2" 
+                    disabled="@_uiState.IsProcessing">
+                @foreach (var languageOption in NabuLanguages.Popular)
+                {
+                    <option value="@languageOption.Key" selected="@(SelectedLanguage == languageOption.Key)">
+                        @languageOption.Value
+                    </option>
+                }
+                @if (_languageExpanded)
+                {
+                    <option disabled>───────────</option>
+                    @foreach (var languageOption in NabuLanguages.Extended)
+                    {
+                        <option value="@languageOption.Key" selected="@(SelectedLanguage == languageOption.Key)">
+                            @languageOption.Value
+                        </option>
+                    }
+                    <option value="@NabuConstants.LanguageSelect.CollapseKey">↑ Show less</option>
+                }
+                else
+                {
+                    <option value="@ExpandLanguagesKey">More languages</option>
+                }
+            </select>
+        </div>
+    }
+    <SpeechOverlayComponent CssClass="@(_uiState.ShowOverlay ? "speech-overlay--active" : "")">
+        <div class="speech-dialog">
+            <p class="speech-dialog__status @(IsHighlightStatus() ? "speech-dialog__status--highlight" : "") @(_uiState.IsCancelling ? "speech-dialog__status--cancel" : "")">@_uiState.OverlayStatus</p>
+
+            <div id="visualizer" class="speech-visualizer"></div>
+
+            <div class="speech-dialog__text">
+                @if (!string.IsNullOrEmpty(_uiState.OverlayText))
+                {
+                    <span class="@(_uiState.IsPreviewText ? "speech-dialog__preview" : "speech-dialog__final")">
+                    @_uiState.OverlayText
+                </span>
+                }
+            </div>
+            @if (_uiState.ShowCancelButton)
+            {
+                <div class="speech-dialog__actions mt-3">
+                    <button type="button" class="btn btn-secondary speech-dialog__cancel-btn">
+                        Cancel
+                    </button>
+                </div>
+            }
+        </div>
+    </SpeechOverlayComponent>
+</div>
+
+@code {
+    [Parameter] public bool ShowLanguageSelect { get; set; }
+
+    private const string ExpandLanguagesKey = NabuConstants.LanguageSelect.ExpandKey;
+    private static readonly Regex BracketsOnlyRegex = new(@"^[\s*\[\]\(\)]+$", RegexOptions.Compiled);
+    private NabuUIState _uiState = new();
+    private NabuJsInterop? _nabuJsInterop;
+    private bool _manualCancelBlock;
+    private bool _languageExpanded;
+    private string _localLanguage = "english";
+
+    private Action<string>? _backendHandler;
+    private Action<string>? _statusMessageHandler;
+    private Action<NabuUIState>? _uiStateHandler;
+    private Action? _settingsLanguageChangedHandler;
+    private Action<string, string>? _commandResolvedHandler;
+    private EventHandler<LocationChangedEventArgs>? _locationChangedHandler;
+
+    private INabuSettings? Settings => ServiceProvider.GetService<INabuSettings>();
+    private string SelectedLanguage => Settings?.Language ?? _localLanguage;
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await SetupJsInteropAsync();
+            await SetupStateAndSettingsAsync();
+            await SetupNavigationContextAsync();
+            await StartNabuAppAsync();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        if (_locationChangedHandler != null) NavigationManager.LocationChanged -= _locationChangedHandler;
+        if (_nabuJsInterop == null) return;
+
+        _nabuJsInterop.OnUIStateChanged -= _uiStateHandler;
+        _nabuJsInterop.OnTranscriptionFinal -= HandleFinalTextForHandlers;
+        _nabuJsInterop.OnManualCancelBlock -= HandleManualCancelBlock;
+        if (_commandResolvedHandler != null) _nabuJsInterop.OnCommandResolved -= _commandResolvedHandler;
+        if (_backendHandler != null) _nabuJsInterop.OnBackendChanged -= _backendHandler;
+        if (_statusMessageHandler != null) _nabuJsInterop.OnStatusMessage -= _statusMessageHandler;
+        if (Settings != null && _settingsLanguageChangedHandler != null) Settings.LanguageChanged -= _settingsLanguageChangedHandler;
+
+        await _nabuJsInterop.DisposeAsync();
+    }
+    
+    private async Task SetupJsInteropAsync()
+    {
+        _nabuJsInterop = new NabuJsInterop(JsRuntime);
+
+        _uiStateHandler = uiState => FireAndForget(HandleUIStateChangedAsync(uiState));
+        _nabuJsInterop.OnUIStateChanged += _uiStateHandler;
+        _nabuJsInterop.OnManualCancelBlock += HandleManualCancelBlock;
+        _nabuJsInterop.OnTranscriptionFinal += HandleFinalTextForHandlers;
+        
+        await _nabuJsInterop.InitializeAsync();
+
+        if (CommandDefinitions != null)
+            await _nabuJsInterop.SetCommandSyncItemsAsync(CommandDefinitions.Items);
+
+        _commandResolvedHandler = (commandId, text) => FireAndForget(DispatchServerResolvedCommandAsync(commandId, text));
+        _nabuJsInterop.OnCommandResolved += _commandResolvedHandler;
+    }
+
+    private async Task SetupStateAndSettingsAsync()
+    {
+        if (ShowLanguageSelect)
+        {
+            await _nabuJsInterop!.AddLanguageSelectEventAsync();
+            _nabuJsInterop.OnLanguageChangeRequested += (selectedValue) => {
+                if (selectedValue == ExpandLanguagesKey)
+                {
+                    _languageExpanded = true;
+                }
+                else
+                {
+                    _languageExpanded = NabuLanguages.Extended.ContainsKey(selectedValue);
+                }
+                InvokeAsync(StateHasChanged);
+            };
+        }
+        var savedLanguage = await _nabuJsInterop!.GetSavedLanguageAsync();
+        
+        if (!string.IsNullOrEmpty(savedLanguage))
+        {
+            if (Settings != null) Settings.Language = savedLanguage;
+            else _localLanguage = savedLanguage;
+        }
+
+        if (Settings != null)
+        {
+            _backendHandler = backend => FireAndForget(HandleBackendChangedAsync(backend));
+            _statusMessageHandler = message => FireAndForget(HandleStatusMessageAsync(message));
+            _settingsLanguageChangedHandler = () => FireAndForget(OnSettingsLanguageChangedAsync());
+
+            _nabuJsInterop.OnBackendChanged += _backendHandler;
+            _nabuJsInterop.OnStatusMessage += _statusMessageHandler;
+            Settings.LanguageChanged += _settingsLanguageChangedHandler;
+
+            _languageExpanded = NabuLanguages.Extended.ContainsKey(Settings.Language);
+        }
+        else
+        {
+            _languageExpanded = NabuLanguages.Extended.ContainsKey(_localLanguage);
+        }
+    }
+
+    private async Task SetupNavigationContextAsync()
+    {
+        await SendCurrentRouteAsync();
+        _locationChangedHandler = async (_, _) => await SendCurrentRouteAsync();
+        NavigationManager.LocationChanged += _locationChangedHandler;
+    }
+
+    private async Task StartNabuAppAsync()
+    {
+        await _nabuJsInterop!.InitAppAsync();
+        await _nabuJsInterop.StartOnUserGestureAsync(SelectedLanguage);
+    }
+
+    private void HandleManualCancelBlock(bool active)
+    {
+        InvokeAsync(() =>
+        {
+            _manualCancelBlock = active;
+            if (active) _uiState = _uiState with { IsCancelling = true };
+
+            StateHasChanged();
+        });
+    }
+
+    private void HandleFinalTextForHandlers(string text)
+    {
+        if (_manualCancelBlock || _uiState.IsCancelling)
+        {
+            Logger.LogInformation("Hard-blocked transcription leak: {Text}", text);
+            return;
+        }
+
+        FireAndForget(NotifyHandlersAsync(text));
+    }
+
+    // ReSharper disable once InconsistentNaming
+    private async Task HandleUIStateChangedAsync(NabuUIState state)
+    {
+        _uiState = state;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleBackendChangedAsync(string backend)
+    {
+        if (Settings == null) return;
+        Settings.Backend = backend switch
+        {
+            NabuConstants.Backends.Service => NabuConstants.BackendLabels.Service,
+            NabuConstants.Backends.BrowserWebGpu => NabuConstants.BackendLabels.BrowserWebGpu,
+            NabuConstants.Backends.BrowserWasm => NabuConstants.BackendLabels.BrowserWasm,
+            var raw when raw.StartsWith(NabuConstants.Backends.Browser) => NabuConstants.BackendLabels.Browser,
+            _ => backend
+        };
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task HandleStatusMessageAsync(string message)
+    {
+        if (Settings != null) Settings.Status = message;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SendCurrentRouteAsync()
+    {
+        if (_nabuJsInterop == null) return;
+        var relative = NavigationManager.ToBaseRelativePath(NavigationManager.Uri);
+        var route = "/" + relative.TrimStart('/').Split('?')[0].Split('#')[0];
+        try
+        {
+            await _nabuJsInterop.SetPageContextAsync(route);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "Failed to send route context '{Route}' to JS.", route);
+        }
+    }
+
+    private async Task DispatchServerResolvedCommandAsync(string commandId, string text)
+    {
+        if (_uiState.IsCancelling) return;
+        await Task.Delay(NabuConstants.CommandDispatchDelayMs); // UX: give transcription overlay time to settle
+        foreach (var handler in CommandHandlers)
+        {
+            try
+            {
+                await handler.OnCommandAsync(commandId, text);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Handler {Handler} threw for {CommandId}", handler.GetType().Name, commandId);
+            }
+        }
+    }
+
+    private async Task NotifyHandlersAsync(string text)
+    {
+        if (string.IsNullOrWhiteSpace(text)) return;
+        var trimmed = text.Trim();
+        if (BracketsOnlyRegex.IsMatch(trimmed) ||
+            trimmed == NabuConstants.TerminationText ||
+            trimmed == NabuConstants.NoRecognizableSpeechText ||
+            trimmed == NabuConstants.UserCancelledText) return;
+
+        foreach (var handler in NabuHandlers)
+        {
+            try
+            {
+                await handler.OnTranscriptionReadyAsync(text);
+            }
+            catch (Exception ex)
+            {
+                Logger.LogError(ex, "Handler {Handler} threw.", handler.GetType().Name);
+            }
+        }
+    }
+
+    private async Task OnSettingsLanguageChangedAsync()
+    {
+        if (_nabuJsInterop != null) await _nabuJsInterop.SetLanguageAsync(SelectedLanguage);
+    }
+
+    private bool IsHighlightStatus()
+    {
+        return _uiState.OverlayStatus is NabuConstants.OverlayStatus.Done or NabuConstants.OverlayStatus.KeywordDetected;
+    }
+
+    private void FireAndForget(Task task)
+    {
+        task.ContinueWith(t => Logger.LogError(t.Exception, "Error in async handler."), TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+}

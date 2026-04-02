@@ -1,0 +1,146 @@
+/*
+ * Speech Overlay - shared styles for Nabu (Blazor) and NabuViewComponent (static).
+ *
+ * Customise any value by setting the corresponding CSS custom property on an
+ * ancestor element (e.g. :root, or the host page's <body>).
+ *
+ *   :root {
+ *       --speech-highlight-color: #60a5fa;
+ *       --speech-dialog-bg: rgba(10, 10, 30, 0.92);
+ *   }
+ */
+
+.speech-overlay {
+    position: fixed;
+    inset: 0;
+    background: var(--speech-overlay-bg, rgba(0, 0, 0, 0.65));
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 9999;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.3s ease;
+    backdrop-filter: blur(var(--speech-overlay-blur, 6px));
+    -webkit-backdrop-filter: blur(var(--speech-overlay-blur, 6px));
+}
+
+.speech-overlay--active {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+}
+
+.speech-dialog {
+    background: var(--speech-dialog-bg, rgba(20, 20, 40, 0.95));
+    border-radius: var(--speech-dialog-radius, 24px);
+    padding: var(--speech-dialog-padding, 2rem 2.5rem);
+    text-align: center;
+    color: var(--speech-dialog-color, #fff);
+    font-family: var(--speech-dialog-font-family, inherit);
+    width: 90vw;
+    max-width: var(--speech-dialog-max-width, 520px);
+    box-shadow: var(--speech-dialog-shadow, 0 25px 80px rgba(0, 0, 0, 0.6));
+}
+
+.speech-dialog__status {
+    font-size: var(--speech-status-font-size, 0.95rem);
+    color: var(--speech-status-color, rgba(255, 255, 255, 0.55));
+    margin: 0 0 1rem 0;
+    letter-spacing: 0.03em;
+}
+
+.speech-dialog__status--highlight {
+    color: var(--speech-highlight-color, #4ade80);
+    font-weight: 600;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--speech-highlight-color, #4ade80) 40%, transparent);
+}
+
+.speech-dialog__status--cancel {
+    color: var(--speech-cancel-color, #facc15);
+    font-weight: 600;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--speech-cancel-color, #facc15) 40%, transparent);
+}
+
+.speech-dialog__cancel-btn {
+    background: #8b92a5 !important;
+
+    border: none !important;
+
+    color: var(--speech-dialog-bg, rgba(20, 20, 40, 0.95)) !important;
+
+    padding: 0.6rem 2rem;
+    font-size: 1.1rem;
+    font-weight: 600;
+    border-radius: 12px;
+    cursor: pointer;
+    transition: all 0.2s ease-in-out;
+    outline: none;
+
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.speech-dialog__cancel-btn:hover {
+    background: #a1a9be !important;
+    transform: translateY(-1px);
+    box-shadow: 0 6px 15px rgba(0, 0, 0, 0.15);
+}
+
+.speech-dialog__cancel-btn:active {
+    transform: translateY(1px);
+    opacity: 0.9;
+}
+
+.speech-dialog__text {
+    min-height: 2.4em;
+    margin-top: 1rem;
+    font-size: var(--speech-text-font-size, 1.2rem);
+    line-height: 1.6;
+}
+
+.speech-dialog__preview {
+    color: var(--speech-preview-color, rgba(255, 255, 255, 0.6));
+    font-style: italic;
+}
+
+.speech-dialog__final {
+    color: var(--speech-final-color, rgba(255, 255, 255, 0.75));
+    font-weight: 400;
+}
+
+.speech-dialog__actions {
+    margin-top: 1.25rem;
+}
+
+.speech-dialog__send-btn {
+    padding: 0.5rem 1.5rem;
+    font-size: 1rem;
+    border-radius: 12px;
+    border: none;
+    background: var(--speech-send-btn-bg, var(--speech-highlight-color, #16a34a));
+    color: var(--speech-send-btn-color, #ffffff);
+    font-weight: 600;
+    cursor: pointer;
+    transition: opacity 0.2s, transform 0.1s;
+}
+
+.speech-dialog__send-btn:hover:not(:disabled) {
+    opacity: 0.9;
+    transform: scale(1.02);
+}
+
+.speech-dialog__send-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+}
+
+.speech-visualizer {
+    height: var(--speech-visualizer-height, 280px);
+    width: 100%;
+    transition: opacity 0.3s, max-height 0.3s;
+    opacity: 0;
+    max-height: 0;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}

@@ -1,5 +1,5 @@
 using Nabu.RazorPagesDemo;
-using Nabu.RCL;
+using Nabu;
 
 var builder = WebApplication.CreateBuilder(args);
 

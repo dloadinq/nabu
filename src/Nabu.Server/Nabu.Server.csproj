@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk.Razor">
+
+    <PropertyGroup>
+        <TargetFramework>net10.0</TargetFramework>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Version>1.0.0-preview.3</Version>
+        <Title>Nabu.Server</Title>
+        <Authors>dloadinq</Authors>
+        <Description>Server-side components for Nabu: Razor Pages Tag Helper, ViewComponent, and local embedding command matching.</Description>
+        <Copyright>Copyright © 2026 dloadinq</Copyright>
+        <PackageProjectUrl>https://github.com/dloadinq/nabu</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/dloadinq/nabu.git</RepositoryUrl>
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <SupportedPlatform Include="browser" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Nabu\Nabu.csproj" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <PackageReference Include="SmartComponents.LocalEmbeddings" Version="0.1.0-preview10148" />
+    </ItemGroup>
+
+</Project>

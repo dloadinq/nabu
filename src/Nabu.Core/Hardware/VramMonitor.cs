@@ -4,8 +4,16 @@ using Microsoft.Win32;
 
 namespace Nabu.Core.Hardware;
 
+/// <summary>
+/// Queries VRAM availability from multiple platform-specific sources (nvidia-smi, Windows WMI/Registry,
+/// and Linux sysfs) to populate <see cref="VramInfo"/> for model selection.
+/// </summary>
 public static class VramMonitor
 {
+    /// <summary>
+    /// Queries free and total VRAM for an NVIDIA GPU via <c>nvidia-smi</c>.
+    /// Returns <c>null</c> values for either field if the query fails.
+    /// </summary>
     public static VramInfo QueryNvidia()
     {
         var free = ParseLong(ProcessHelper.RunFirstLine("nvidia-smi",
@@ -15,6 +23,12 @@ public static class VramMonitor
         return new VramInfo(FreeMb: free, TotalMb: total);
     }
 
+    /// <summary>
+    /// Queries the GPU adapter name and VRAM from Windows WMI and the Windows Registry, filtering
+    /// results to adapters whose names contain at least one of <paramref name="nameFilters"/>.
+    /// </summary>
+    /// <param name="nameFilters">Substrings used to match the adapter name (e.g., <c>"AMD"</c>, <c>"Intel"</c>).</param>
+    /// <returns>The adapter display name and a <see cref="VramInfo"/> with free and total VRAM figures.</returns>
     [SupportedOSPlatform("windows")]
     public static (string? Name, VramInfo Vram) QueryWindowsAdapterInfo(params string[] nameFilters)
     {
@@ -23,6 +37,11 @@ public static class VramMonitor
         return (name, new VramInfo(FreeMb: freeMb, TotalMb: totalMb));
     }
 
+    /// <summary>
+    /// Queries VRAM totals and usage from the Linux kernel's <c>/sys/class/drm</c> sysfs interface.
+    /// Used for AMD and Intel GPUs on Linux where dedicated tooling may not be available.
+    /// Returns <c>null</c> values when no compatible card is found or an I/O error occurs.
+    /// </summary>
     public static VramInfo QuerySysfs()
     {
         try
@@ -78,7 +97,7 @@ public static class VramMonitor
     private static long? AdapterRamToMb(object? value)
     {
         if (value is not uint ram || ram == 0) return null;
-        // uint wraps at 4 GB — values suspiciously close to the limit are overflowed
+        // WMI reports AdapterRAM as a uint, which wraps at 4 GB; values near the uint ceiling indicate overflow.
         if (ram >= uint.MaxValue - 1024 * 1024) return null;
         return ram / (1024 * 1024);
     }

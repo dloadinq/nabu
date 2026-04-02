@@ -3,8 +3,20 @@ using System.Runtime.Versioning;
 
 namespace Nabu.Core.Hardware;
 
+/// <summary>
+/// Detects the available GPU and VRAM on the current machine to inform model selection.
+/// Supports Windows (CUDA, AMD Vulkan/ROCm, Intel), Linux (CUDA, AMD ROCm, Intel Vulkan), and macOS (CoreML).
+/// Falls back to CPU when no supported GPU is found.
+/// </summary>
 public static class GpuDetector
 {
+    /// <summary>
+    /// Detects the primary GPU and its available VRAM on the current operating system.
+    /// </summary>
+    /// <returns>
+    /// A <see cref="GpuInfo"/> describing whether a GPU was found, its display label, and VRAM figures.
+    /// When no GPU is detected, <see cref="GpuInfo.IsGpu"/> is <c>false</c> and the label is <c>"CPU"</c>.
+    /// </returns>
     public static GpuInfo Detect()
     {
         if (OperatingSystem.IsWindows()) return DetectWindows();
@@ -13,6 +25,11 @@ public static class GpuDetector
         return new(false, "CPU");
     }
 
+    /// <summary>
+    /// Attempts to read the CPU model name from OS-specific sources
+    /// (Windows Registry, <c>/proc/cpuinfo</c> on Linux, or <c>sysctl</c> on macOS).
+    /// </summary>
+    /// <returns>The trimmed CPU name string, or <c>null</c> if it cannot be determined.</returns>
     public static string? DetectCpuName()
     {
         if (OperatingSystem.IsWindows())

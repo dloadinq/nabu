@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
-using Nabu.RCL;
+using Nabu;
 
 namespace Nabu.RazorPagesDemo.Pages;
 

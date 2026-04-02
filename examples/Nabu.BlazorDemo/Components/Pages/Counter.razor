@@ -1,10 +1,13 @@
 @page "/counter"
+@inject VoiceCommandRegistry VoiceCommands
+@implements IDisposable
+@rendermode InteractiveServer
 
 <PageTitle>Counter</PageTitle>
 
 <h1>Counter</h1>
 
-<Nabu/>
+<NabuAssistant/>
 
 <p role="status">Current count: @currentCount</p>
 
@@ -13,9 +16,28 @@
 @code {
     private int currentCount = 0;
 
+    protected override void OnInitialized()
+    {
+        VoiceCommands.Register("increment", _ =>
+        {
+            currentCount++;
+            return InvokeAsync(StateHasChanged);
+        });
+        VoiceCommands.Register("reset", _ =>
+        {
+            currentCount = 0;
+            return InvokeAsync(StateHasChanged);
+        });
+    }
+
     private void IncrementCount()
     {
         currentCount++;
     }
 
+    public void Dispose()
+    {
+        VoiceCommands.Unregister("increment");
+        VoiceCommands.Unregister("reset");
+    }
 }

@@ -1,38 +1,44 @@
+using System.Buffers;
 using System.Collections.Concurrent;
 using Microsoft.AspNetCore.SignalR;
-using Microsoft.Extensions.DependencyInjection;
 using Nabu.Core.Audio;
-using Nabu.Core.Transcription;
+using Nabu.Inference.Embeddings;
 
 namespace Nabu.Local.Hubs;
 
-public class WhisperHub : Hub
+public class WhisperHub(
+    ILogger<WhisperHub> logger,
+    IServiceProvider serviceProvider,
+    IHubContext<WhisperHub> hubContext,
+    CommandSyncService? commandSyncService = null)
+    : Hub
 {
-    private readonly ILogger<WhisperHub> _logger;
-    private readonly IServiceProvider _serviceProvider;
-    private readonly IHubContext<WhisperHub> _hubContext;
     private static readonly ConcurrentDictionary<string, HubPipelineSession> Sessions = new();
-
-    public WhisperHub(ILogger<WhisperHub> logger, IServiceProvider serviceProvider, IHubContext<WhisperHub> hubContext)
-    {
-        _logger = logger;
-        _serviceProvider = serviceProvider;
-        _hubContext = hubContext;
-    }
 
     public override async Task OnConnectedAsync()
     {
         var connectionId = Context.ConnectionId;
-        _logger.LogInformation("Client connected: {ConnectionId}", connectionId);
+        logger.LogInformation("Client connected: {ConnectionId}", connectionId);
 
-        var scope = _serviceProvider.CreateScope();
+        var origin = Context.GetHttpContext()?.Request.Headers.Origin.ToString() ?? "unknown";
+        var collectionName = CommandSyncService.CollectionName(origin);
+
+        var scope = serviceProvider.CreateScope();
         var pipeline = scope.ServiceProvider.GetRequiredService<AudioProcessingPipeline>();
-        var session = new HubPipelineSession(pipeline, scope);
+        var session = new HubPipelineSession(pipeline, scope, collectionName);
 
-        session.WakeWordHandler = (word) => SafeSendAsync(connectionId, "OnWakeWordDetected", word);
-        session.PreviewHandler = (text) => SafeSendAsync(connectionId, "OnTranscriptionPreview", text);
-        session.FinalHandler = (text) => SafeSendAsync(connectionId, "OnTranscriptionFinal", text);
-        session.StatusHandler = (status) => SafeSendAsync(connectionId, "OnStatusChanged", status);
+        session.WakeWordHandler = word => _ = SafeSendAsync(connectionId, "OnWakeWordDetected", word);
+        session.PreviewHandler = text => _ = SafeSendAsync(connectionId, "OnTranscriptionPreview", text);
+        session.StatusHandler = status => _ = SafeSendAsync(connectionId, "OnStatusChanged", status);
+        session.FinalHandler = (text, translatedText) =>
+        {
+            _ = SafeSendAsync(connectionId, "OnTranscriptionFinal", text);
+
+            if (commandSyncService is null) return;
+            if (commandSyncService.Resolve(session.CommandCollectionName, translatedText ?? text, session.CurrentRoute)
+                is { } commandId)
+                _ = SafeSendCore(connectionId, "OnCommandResolved", commandId, translatedText ?? text);
+        };
 
         pipeline.OnWakeWordDetected += session.WakeWordHandler;
         pipeline.OnTranscriptionPreview += session.PreviewHandler;
@@ -43,16 +49,91 @@ public class WhisperHub : Hub
         await base.OnConnectedAsync();
     }
 
-    private async void SafeSendAsync(string connectionId, string method, string arg)
+    private Task SafeSendAsync(string connectionId, string method, string arg)
     {
-        try
+        return hubContext.Clients.Client(connectionId).SendAsync(method, arg)
+            .ContinueWith(
+                t => logger.LogWarning(t.Exception?.GetBaseException(), "Failed to send {Method} to {ConnectionId}",
+                    method, connectionId),
+                TaskContinuationOptions.OnlyOnFaulted);
+    }
+
+    private Task SafeSendCore(string connectionId, string method, params object?[] args)
+    {
+        return hubContext.Clients.Client(connectionId).SendCoreAsync(method, args)
+            .ContinueWith(
+                t => logger.LogWarning(t.Exception?.GetBaseException(), "Failed to send {Method} to {ConnectionId}",
+                    method, connectionId),
+                TaskContinuationOptions.OnlyOnFaulted);
+    }
+    
+    public async Task SendAudioChunk(string base64Data)
+    {
+        var connectionId = Context.ConnectionId;
+        if (!Sessions.TryGetValue(connectionId, out var session)) return;
+        if (string.IsNullOrWhiteSpace(base64Data)) return;
+
+        var maxByteCount = (base64Data.Length * 3 + 3) / 4;
+        var rented = ArrayPool<byte>.Shared.Rent(maxByteCount);
+
+        if (Convert.TryFromBase64String(base64Data, rented, out var bytesWritten))
         {
-            await _hubContext.Clients.Client(connectionId).SendAsync(method, arg);
+            try
+            {
+                await session.Pipeline.ProcessAudioChunkAsync(rented, bytesWritten);
+            }
+            catch (Exception ex)
+            {
+                ArrayPool<byte>.Shared.Return(rented);
+                logger.LogError(ex, "Failed to delegate audio chunk for {ConnectionId}", connectionId);
+            }
         }
-        catch (Exception ex)
+        else
         {
-            _logger.LogWarning(ex, "Failed to send {Method} to connection {ConnectionId}", method, connectionId);
+            ArrayPool<byte>.Shared.Return(rented);
+            logger.LogWarning("Invalid Base64 received from {ConnectionId}", connectionId);
         }
+    }
+
+    public Task SetLanguage(string language)
+    {
+        var connectionId = Context.ConnectionId;
+        logger.LogInformation("Client {ConnectionId} set language: {Language}", connectionId, language);
+        if (Sessions.TryGetValue(connectionId, out var session)) session.Pipeline.SetPreferredLanguage(language);
+        return Task.CompletedTask;
+    }
+
+    public Task CancelRecording()
+    {
+        if (!Sessions.TryGetValue(Context.ConnectionId, out var session))
+        {
+            logger.LogWarning("CancelRecording: No session for {ConnectionId}", Context.ConnectionId);
+            return Task.CompletedTask;
+        }
+
+        logger.LogInformation("CancelRecording: discarding for {ConnectionId}", Context.ConnectionId);
+        return session.Pipeline.CancelAndDiscardAsync();
+    }
+
+    public string[] GetCommandHashes()
+    {
+        return commandSyncService is not null && Sessions.TryGetValue(Context.ConnectionId, out var session)
+            ? commandSyncService.GetHashes(session.CommandCollectionName)
+            : [];
+    }
+
+    public Task PatchCommands(CommandSyncItem[] upsertItems, string[] retainedHashes)
+    {
+        if (commandSyncService is null || !Sessions.TryGetValue(Context.ConnectionId, out var session))
+            return Task.CompletedTask;
+        return commandSyncService.PatchAsync(session.CommandCollectionName, upsertItems, retainedHashes);
+    }
+    
+    public Task SetPageContext(string route)
+    {
+        if (Sessions.TryGetValue(Context.ConnectionId, out var session))
+            session.CurrentRoute = route;
+        return Task.CompletedTask;
     }
     
     public override async Task OnDisconnectedAsync(Exception? exception)
@@ -64,77 +145,27 @@ public class WhisperHub : Hub
             session.Pipeline.OnTranscriptionPreview -= session.PreviewHandler;
             session.Pipeline.OnTranscriptionFinal -= session.FinalHandler;
             session.Pipeline.OnStatusChanged -= session.StatusHandler;
+
             session.Scope.Dispose();
         }
-        
-        _logger.LogInformation("Client disconnected: {ConnectionId}", connectionId);
+
+        logger.LogInformation("Client disconnected: {ConnectionId}", connectionId);
         await base.OnDisconnectedAsync(exception);
     }
 
-    public async Task SendAudioChunk(string base64Data)
+    private sealed class HubPipelineSession(
+        AudioProcessingPipeline pipeline,
+        IServiceScope scope,
+        string commandCollectionName)
     {
-        var connectionId = Context.ConnectionId;
-        if (!Sessions.TryGetValue(connectionId, out var session))
-        {
-            _logger.LogWarning("SendAudioChunk: No session for connection {ConnectionId}. Active sessions: {Count}. Audio may not be processed.", connectionId, Sessions.Count);
-            return;
-        }
-        byte[] data;
-        try
-        {
-            data = Convert.FromBase64String(base64Data);
-        }
-        catch (FormatException ex)
-        {
-            _logger.LogWarning(ex, "SendAudioChunk: Invalid base64 data from connection {ConnectionId}", connectionId);
-            throw new HubException("Invalid audio data format.");
-        }
-        try
-        {
-            await session.Pipeline.ProcessAudioChunkAsync(data);
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Failed to process audio chunk for connection {ConnectionId}", connectionId);
-            throw new HubException("Server failed to process audio chunk.");
-        }
-    }
+        public AudioProcessingPipeline Pipeline { get; } = pipeline;
+        public IServiceScope Scope { get; } = scope;
+        public string CommandCollectionName { get; } = commandCollectionName;
+        public string? CurrentRoute { get; set; }
 
-    public Task SetLanguage(string language)
-    {
-        var connectionId = Context.ConnectionId;
-        _logger.LogInformation("Client {ConnectionId} set language to: {Language}", connectionId, language);
-        if (Sessions.TryGetValue(connectionId, out var session))
-        {
-            session.Pipeline.SetPreferredLanguage(language);
-        }
-        return Task.CompletedTask;
-    }
-
-    public async Task FinishRecording()
-    {
-        var connectionId = Context.ConnectionId;
-        if (!Sessions.TryGetValue(connectionId, out var session))
-        {
-            _logger.LogWarning("FinishRecording: No session for connection {ConnectionId}", connectionId);
-            return;
-        }
-        await session.Pipeline.ForceStopAndFinalizeAsync();
-    }
-
-    private sealed class HubPipelineSession
-    {
-        public HubPipelineSession(AudioProcessingPipeline pipeline, IServiceScope scope)
-        {
-            Pipeline = pipeline;
-            Scope = scope;
-        }
-
-        public AudioProcessingPipeline Pipeline { get; }
-        public IServiceScope Scope { get; }
         public Action<string> WakeWordHandler { get; set; } = _ => { };
         public Action<string> PreviewHandler { get; set; } = _ => { };
-        public Action<string> FinalHandler { get; set; } = _ => { };
+        public Action<string, string?> FinalHandler { get; set; } = (_, _) => { };
         public Action<string> StatusHandler { get; set; } = _ => { };
     }
 }

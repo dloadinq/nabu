@@ -2,19 +2,20 @@ using System.Text.Json.Serialization;
 using Microsoft.AspNetCore.SignalR;
 using Microsoft.Extensions.Options;
 using Nabu.Core.Config;
-using Nabu.Local.Hubs;
 using Nabu.Core.Hardware;
 using Nabu.Core.Models;
 using Nabu.Core.ModelSetup;
-using Nabu.Core.Transcription;
+using Nabu.Inference.Embeddings;
+using Nabu.Inference.Transcription;
 using Nabu.Local;
+using Nabu.Local.Hubs;
 
 if (!string.Equals(Directory.GetCurrentDirectory(), AppContext.BaseDirectory, StringComparison.Ordinal))
     Directory.SetCurrentDirectory(AppContext.BaseDirectory);
 
 var builder = WebApplication.CreateSlimBuilder(args);
 
-var url = builder.Configuration["WhisperLocal:Url"] ?? "http://localhost:50000";
+var url = builder.Configuration["NabuLocal:Url"] ?? "http://localhost:50000";
 builder.WebHost.UseUrls(url);
 
 builder.Services.AddSignalR();
@@ -27,23 +28,20 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.TypeInfoResolverChain.Insert(0, AppJsonSerializerContext.Default);
 });
 
-builder.Services.Configure<WhisperLocalOptions>(builder.Configuration.GetSection(WhisperLocalOptions.SectionName));
+builder.Services.Configure<NabuLocalOptions>(builder.Configuration.GetSection(NabuLocalOptions.SectionName));
+builder.Services.Configure<EmbeddingOptions>(builder.Configuration.GetSection(EmbeddingOptions.SectionName));
 
-var whisperConfig = builder.Configuration.GetSection("WhisperLocal:Whisper");
-var modelSize = whisperConfig["ModelSize"] ?? "";
-var modelsDirectory = whisperConfig["ModelsDirectory"] ?? "models";
-var language = whisperConfig["Language"] ?? "english";
+var nabuOptions = builder.Configuration.GetSection(NabuLocalOptions.SectionName).Get<NabuLocalOptions>() ?? new NabuLocalOptions();
+var modelsDirectory = nabuOptions.Whisper.ModelsDirectory;
+var language = nabuOptions.Whisper.Language;
 
+Console.Clear();
 var gpu = ModelManager.DetectGpu();
 
-var forceCpu = false;
-if (string.IsNullOrWhiteSpace(modelSize))
-{
-    var selection = ModelManager.PromptModelSize(modelsDirectory, gpu);
-    if (selection is null) return;
-    modelSize = selection.Size;
-    forceCpu = selection.ForceCpu;
-}
+var selection = ModelManager.PromptModelSize(modelsDirectory, gpu);
+if (selection is null) return;
+var modelSize = selection.Size;
+var forceCpu = selection.ForceCpu;
 
 var (resolvedModelPath, loadedModel) = await ModelManager.EnsureModelAsync(modelSize, modelsDirectory, gpu, forceCpu);
 
@@ -54,9 +52,25 @@ builder.Services.AddSingleton(gpu);
 builder.Services.AddSingleton(loadedModel);
 builder.Services.AddAudioServices(language, resolvedModelPath);
 
+var embeddingOptions = builder.Configuration.GetSection(EmbeddingOptions.SectionName).Get<EmbeddingOptions>() ?? new EmbeddingOptions();
+
+if (embeddingOptions.Enabled && await EmbeddingModelSetup.EnsureDownloadedAsync(embeddingOptions.ModelDirectory))
+{
+    var modelPath = Path.Combine(embeddingOptions.ModelDirectory, EmbeddingModelSetup.ModelFileName);
+    var vocabPath = Path.Combine(embeddingOptions.ModelDirectory, EmbeddingModelSetup.VocabFileName);
+
+    builder.Services.AddSingleton(_ => new SentenceEmbedder(modelPath, vocabPath));
+    builder.Services.AddSingleton(_ => new CommandStore(embeddingOptions.CommandDirectory));
+    builder.Services.AddSingleton<CommandSyncService>();
+}
+else
+{
+    Console.WriteLine("Embeddings Disabled (set Embedding:Enabled = true and ensure model files).");
+}
+
 builder.Services.AddCors(options =>
 {
-    options.AddPolicy("WhisperLocalCors", policy =>
+    options.AddPolicy("NabuLocalCors", policy =>
         policy
             .SetIsOriginAllowed(_ => true)
             .AllowAnyHeader()
@@ -67,10 +81,14 @@ builder.Services.AddCors(options =>
 
 var app = builder.Build();
 
-app.UseCors("WhisperLocalCors");
+app.UseCors("NabuLocalCors");
 
-app.MapGet("/", (GpuInfo gpuInfo, LoadedModelInfo loadedModel, IOptions<WhisperLocalOptions> opts)
-    => StatusPageHandler.GetStatusPage(gpuInfo, loadedModel, opts.Value));
+var statusHtml = StatusPageHandler.BuildStatusPage(
+    app.Services.GetRequiredService<GpuInfo>(),
+    app.Services.GetRequiredService<LoadedModelInfo>(),
+    app.Services.GetRequiredService<IOptions<NabuLocalOptions>>().Value);
+
+app.MapGet("/", () => Results.Content(statusHtml, "text/html"));
 app.MapGet("/blast", () => Results.Ok("Missed. Again."));
 app.MapHub<WhisperHub>("/voiceHub");
 
@@ -99,11 +117,15 @@ static async Task AnimateInitAsync(CancellationToken ct)
             await Task.Delay(400, ct);
         }
     }
-    catch (OperationCanceledException) { }
+    catch (OperationCanceledException)
+    {
+    }
 }
 
 [JsonSerializable(typeof(string))]
-[JsonSerializable(typeof(byte[]))]
+[JsonSerializable(typeof(string[]))]
+[JsonSerializable(typeof(CommandSyncItem))]
+[JsonSerializable(typeof(CommandSyncItem[]))]
 internal partial class AppJsonSerializerContext : JsonSerializerContext
 {
 }

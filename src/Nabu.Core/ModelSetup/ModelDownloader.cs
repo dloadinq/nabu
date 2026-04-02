@@ -2,12 +2,35 @@ using System.Diagnostics;
 
 namespace Nabu.Core.ModelSetup;
 
+/// <summary>
+/// A speed measurement sample used to compute a sliding-window download rate during model downloads.
+/// </summary>
+/// <param name="ElapsedMs">Elapsed milliseconds since the download started when this sample was taken.</param>
+/// <param name="BytesDownloaded">Total bytes downloaded at the time of this sample.</param>
 public record SpeedSample(long ElapsedMs, long BytesDownloaded);
 
+/// <summary>
+/// Streams a model file from a source to a destination while rendering a console progress bar
+/// with download speed and ETA information.
+/// </summary>
 public static class ModelDownloader
 {
     private const int BarWidth = 28;
 
+    /// <summary>
+    /// Copies bytes from <paramref name="source"/> to <paramref name="destination"/> while rendering
+    /// a live console progress bar showing percentage, downloaded/total size, speed, and ETA.
+    /// </summary>
+    /// <param name="source">The HTTP response stream or any readable stream to download from.</param>
+    /// <param name="destination">The writable destination stream (typically a file stream).</param>
+    /// <param name="consoleLock">
+    /// A shared lock object to serialise console writes when this method runs concurrently with
+    /// an animated dots task on the same line.
+    /// </param>
+    /// <param name="expectedTotalBytes">
+    /// Expected total byte count used to render the progress bar. Pass <c>0</c> when the total is
+    /// unknown; the bar will show bytes downloaded without a percentage.
+    /// </param>
     public static async Task DownloadAsync(Stream source, Stream destination, object consoleLock,
         long expectedTotalBytes)
     {

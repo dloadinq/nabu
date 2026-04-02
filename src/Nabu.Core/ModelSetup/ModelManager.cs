@@ -4,10 +4,24 @@ using Nabu.Core.Models;
 
 namespace Nabu.Core.ModelSetup;
 
+/// <summary>
+/// Orchestrates Whisper model selection, resolution, and download for the local Nabu server.
+/// Determines whether to use a GPU float32 model or a CPU Q4_0-quantised model based on detected VRAM,
+/// then downloads the selected model if it is not already present.
+/// </summary>
 public static class ModelManager
 {
     private record ModelResolution(QuantizationType Quantization, string FileName, long ApproxBytes);
 
+    /// <summary>
+    /// Displays the interactive model selection menu in the console and returns the user's choice.
+    /// </summary>
+    /// <param name="modelsDirectory">Directory to check for already-downloaded model files.</param>
+    /// <param name="gpuInfo">Detected GPU information used to derive recommendations and filter unavailable sizes.</param>
+    /// <returns>
+    /// A <see cref="ModelSelection"/> with the chosen size key and whether CPU mode was forced,
+    /// or <c>null</c> if the user quit the menu.
+    /// </returns>
     public static ModelSelection? PromptModelSize(string modelsDirectory, GpuInfo gpuInfo)
     {
         var recommended = ModelCatalog.GetRecommendedSize(gpuInfo.VramFreeMb);
@@ -20,9 +34,25 @@ public static class ModelManager
             vramTotalMb, gpuLabel, cpuName);
     }
 
+    /// <summary>Detects the GPU on the current machine. Convenience wrapper around <see cref="GpuDetector.Detect"/>.</summary>
     public static GpuInfo DetectGpu()
         => GpuDetector.Detect();
 
+    /// <summary>
+    /// Ensures the required Whisper model file is present on disk, downloading it if necessary,
+    /// and returns its file path together with display metadata.
+    /// </summary>
+    /// <param name="modelSize">Size key (one of <c>"tiny"</c>, <c>"base"</c>, <c>"small"</c>, <c>"medium"</c>, <c>"large"</c>).</param>
+    /// <param name="modelsDirectory">Directory where model files are stored.</param>
+    /// <param name="gpuInfo">GPU information used to decide between float32 and Q4_0 quantisation.</param>
+    /// <param name="forceCpu">
+    /// When <c>true</c>, always selects the Q4_0 quantised model regardless of available VRAM.
+    /// </param>
+    /// <returns>
+    /// A tuple of the local model file path and a <see cref="LoadedModelInfo"/> with a display name and
+    /// the inference mode label (e.g., <c>"CUDA (RTX 4090)"</c> or <c>"CPU"</c>).
+    /// </returns>
+    /// <exception cref="ArgumentException">Thrown when <paramref name="modelSize"/> is not a recognised key.</exception>
     public static async Task<(string FilePath, LoadedModelInfo ModelInfo)> EnsureModelAsync(
         string modelSize, string modelsDirectory, GpuInfo gpuInfo, bool forceCpu = false)
     {
