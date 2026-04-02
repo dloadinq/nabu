@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ContentView xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
+             x:Class="Nabu.Maui.NabuAssistantView"
+             x:Name="this">
+
+    <Grid RowDefinitions="Auto,*,Auto,Auto"
+          RowSpacing="16"
+          Padding="0">
+
+        <!-- Status -->
+        <Label Grid.Row="0"
+               x:Name="StatusLabel"
+               Text="Idle."
+               FontSize="16"
+               FontAttributes="Bold"
+               HorizontalOptions="Center"/>
+
+        <!-- Live preview -->
+        <Border Grid.Row="1"
+                Padding="18,14"
+                StrokeShape="RoundRectangle 10"
+                MinimumHeightRequest="80">
+            <Label x:Name="PreviewLabel"
+                   FontSize="14"
+                   FontAttributes="Italic"
+                   LineBreakMode="WordWrap"/>
+        </Border>
+
+        <!-- Final transcription -->
+        <VerticalStackLayout Grid.Row="2" Spacing="6">
+            <Label Text="Transcription"
+                   FontSize="11"
+                   TextTransform="Uppercase"/>
+            <Border Padding="18,14"
+                    StrokeShape="RoundRectangle 10"
+                    MinimumHeightRequest="56">
+                <Label x:Name="FinalLabel"
+                       Text="—"
+                       FontSize="15"
+                       LineBreakMode="WordWrap"/>
+            </Border>
+        </VerticalStackLayout>
+
+        <!-- Footer: wake word hint + language picker -->
+        <Grid Grid.Row="3" ColumnDefinitions="*,Auto">
+            <Label Grid.Column="0"
+                   x:Name="WakeWordLabel"
+                   FontSize="12"
+                   VerticalOptions="Center"/>
+            <Picker Grid.Column="1"
+                    x:Name="LanguagePicker"
+                    WidthRequest="160"
+                    SelectedIndexChanged="OnLanguageChanged"
+                    IsVisible="{Binding ShowLanguageSelect, Source={x:Reference this}}"/>
+        </Grid>
+
+    </Grid>
+</ContentView>
