@@ -313,19 +313,16 @@ async function performCommandDeltaSync(connection, items) {
     const serverHashesArray = await connection.invoke(HUB_METHODS.GET_COMMAND_HASHES);
     const serverHashes = new Set(serverHashesArray);
 
-    let hasChanges = false;
     const upserts = [];
-    const retainedHashes = [];
+    const retainedHashes = items.map(item => item.hash);
 
     for (const item of items) {
-        retainedHashes.push(item.hash);
         if (!serverHashes.has(item.hash)) {
             upserts.push(item);
-            hasChanges = true;
         }
     }
 
-    if (serverHashesArray.length !== retainedHashes.length || hasChanges) {
+    if (upserts.length > 0 || serverHashesArray.length !== retainedHashes.length) {
         await connection.invoke(HUB_METHODS.PATCH_COMMANDS, upserts, retainedHashes);
         console.log(`[${timestamp()}] Synced Delta: ${upserts.length} upserts, retaining ${retainedHashes.length} items on server.`);
     } else {

@@ -86,7 +86,8 @@ async function startBrowserMode() {
 
 export async function startLiveTranscription(userOptions = {}) {
     appState.transcriptionOptions = {...appState.transcriptionOptions, ...userOptions};
-
+    appState.suppressTranscription = false;
+    
     if (!isRestarting) {
         await emitStatusMessageAndFlush('Awaiting permission for microphone input...');
     }
@@ -107,36 +108,30 @@ export async function startLiveTranscription(userOptions = {}) {
             await startServiceMode();
             return;
         } catch (error) {
-            if (isMicError(error)) {
-                handleMicError(error);
-                return;
-            }
-            if (isMobileDevice()) {
-                setActiveBackend(BACKENDS.BROWSER);
-                emitStatusMessage('Use a desktop or reconnect to Whisper.Local.');
-                showToast('Server connection failed. Browser inference is not supported on mobile.', 6000);
-            } else {
-                console.warn(`[${timestamp()}] Service backend failed. Falling back to browser.`, error);
-                showToast('Server connection failed. Falling back to browser inference.', 5000);
-                setActiveBackend(BACKENDS.BROWSER);
-                emitStatusMessage('Setting up Browser Inference...');
-            }
+            if (isMicError(error)) return handleMicError(error);
+
+            console.warn(`[${timestamp()}] Service failed to start. Falling back...`, error);
             await stopAudioCapture();
             stopVisualizer(VISUALIZER_ID);
-            if (isMobileDevice()) return;
         }
-    } else if (isMobileDevice()) {
-        setActiveBackend(BACKENDS.BROWSER);
-        emitStatusMessage('Browser inference is not supported on mobile. Use a desktop or connect to Whisper.Local on your network.');
-        showToast('Mobile: Use desktop or connect to Whisper.Local server.', 8000);
+    } 
+    
+    setActiveBackend(BACKENDS.BROWSER);
+
+    if (isMobileDevice()) {
+        const msg = serverAvailable
+            ? 'Server connection failed. Browser inference not supported on mobile.'
+            : 'Browser inference not supported on mobile. Please connect to Whisper.Local.';
+
+        emitStatusMessage(msg);
+        showToast(msg, 8000);
         return;
-    } else {
-        setActiveBackend(BACKENDS.BROWSER);
-        if (!isRestarting) {
-            emitStatusMessage('Setting up Browser Inference...');
-            showToast('No server. Loading browser model...', 3000);
-            window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.BROWSER_MODEL_LOADING));
-        }
+    }
+    
+    if (!isRestarting) {
+        emitStatusMessage('Setting up Browser Inference...');
+        showToast('No server available. Loading browser model...', 3000);
+        window.dispatchEvent(new CustomEvent(CUSTOM_EVENTS.BROWSER_MODEL_LOADING));
     }
 
     await startBrowserMode();
