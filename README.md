@@ -21,7 +21,7 @@ cd external/silero-vad
 git sparse-checkout set --no-cone "/examples/csharp/*" "/src/silero_vad/data/silero_vad.onnx"
 cd ../..
 
-# 2. Setup NanoWakeWord (only the core library folder)
+# Setup NanoWakeWord (only the core library folder)
 cd external/NanoWakeWord
 git sparse-checkout set --no-cone "/NanoWakeWord/*"
 cd ../..
@@ -35,8 +35,10 @@ cd ../..
 - **Live preview**: Real-time transcription text while recording
 - **Voice Activity Detection**: Silero VAD (ONNX)
 - **Wake-word detection**: Optional via NanoWakeWord
+- **Voice commands**: Semantic command matching with scoping and JSON/code registration
+- **Voice navigation**: Automatic route-based voice navigation
 - **50+ languages** supported
-- Compatible with **Blazor Server** and **Razor Pages**
+- Compatible with **Blazor Server**, **Blazor WebAssembly**, **Razor Pages**, and **.NET MAUI**
 
 ---
 
@@ -44,15 +46,23 @@ cd ../..
 
 ### NuGet (recommended)
 
+**Blazor Server / Blazor WebAssembly:**
 ```bash
-dotnet add package Nabu.RCL --version 1.0.0-preview.3
+dotnet add package Nabu --version 1.0.0-preview.4
+```
+
+**Razor Pages (also includes Blazor support):**
+```bash
+dotnet add package Nabu.Server --version 1.0.0-preview.4
 ```
 
 Or in your `.csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Nabu.RCL" Version="1.0.0-preview.3" />
+  <PackageReference Include="Nabu" Version="1.0.0-preview.4" />
+  <!-- or for Razor Pages: -->
+  <PackageReference Include="Nabu.Server" Version="1.0.0-preview.4" />
 </ItemGroup>
 ```
 
@@ -60,7 +70,10 @@ Or in your `.csproj`:
 
 ```xml
 <ItemGroup>
-  <ProjectReference Include="../src/Nabu.RCL/Nabu.RCL.csproj" />
+  <!-- Blazor apps -->
+  <ProjectReference Include="../src/Nabu/Nabu.csproj" />
+  <!-- Razor Pages apps -->
+  <ProjectReference Include="../src/Nabu.Server/Nabu.Server.csproj" />
 </ItemGroup>
 ```
 
@@ -72,7 +85,7 @@ Or in your `.csproj`:
 
 ```csharp
 // Program.cs
-using Nabu.RCL;
+using Nabu;
 
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents();
@@ -92,35 +105,42 @@ Place this before the closing `</body>` tag.
 ### 3. Add the `@using` directive to `_Import.razor`
 
 ```razor
-@using Nabu.RCL
+@using Nabu
 ```
 
 ### 4. Implement `INabuHandler`
 
 ```csharp
-using Nabu.RCL;
+using Nabu;
 
 public class MyHandler : INabuHandler
 {
     public Task OnTranscriptionReadyAsync(string text)
     {
         // text is never empty or whitespace.
-        // Filter WhisperConstants.TerminationText / NoRecognizableSpeechText if needed.
+        // Filter NabuConstants.TerminationText / NoRecognizableSpeechText if needed.
         Console.WriteLine($"Transcription: {text}");
         return Task.CompletedTask;
     }
 }
 ```
 
-### 5. Add `Nabu` to a page
+### 5. Add `<NabuAssistant>` to a page
+
+```razor
+@page "/"
+@rendermode InteractiveServer
+
+<NabuAssistant ShowLanguageSelect="true" />
+```
+
+`@rendermode InteractiveServer` must be active. You can set it on the page (as above) or directly on the component:
 
 ```razor
 @page "/"
 
-<Nabu ShowLanguageSelect="true" />
+<NabuAssistant ShowLanguageSelect="true" @rendermode="InteractiveServer" />
 ```
-
-No `@rendermode` needed — the component sets `InteractiveServer` automatically.
 
 ---
 
@@ -130,7 +150,7 @@ No `@rendermode` needed — the component sets `InteractiveServer` automatically
 
 ```csharp
 // Program.cs
-using Nabu.RCL;
+using Nabu;
 
 builder.Services.AddRazorPages();
 
@@ -149,14 +169,14 @@ Place this before the closing `</body>` tag.
 ### 3. Add the `@using` and `@addTagHelper` directives to `_ViewImports.cshtml`
 
 ```razor
-@using Nabu.RCL
-@addTagHelper *, Nabu.RCL
+@using Nabu
+@addTagHelper *, Nabu.Server
 ```
 
-### 4. Add `<nabu>` to a page
+### 4. Add `<nabu-assistant>` to a page
 
 ```html
-<nabu show-language-select="true"></nabu>
+<nabu-assistant show-language-select="true"></nabu-assistant>
 
 <script>
     window.addEventListener('whisper:transcriptionFinal', event => {
@@ -185,6 +205,101 @@ public class IndexModel : PageModel
     public record TranscriptionDto(string Text);
 }
 ```
+
+---
+
+## Voice Commands
+
+Nabu can resolve spoken phrases into discrete command IDs via semantic matching, so you don't need exact keyword lists.
+
+### Register commands in `Program.cs`
+
+```csharp
+builder.Services.AddNabu()
+    .AddCommandHandler<MyCommandHandler>()
+    .AddCommand("increment", ["add one", "count up"], scope: "/counter")
+    .AddCommand("reset", ["reset", "start over"], scope: "/counter");
+```
+
+### Register commands from an embedded JSON resource
+
+```csharp
+builder.Services.AddNabu()
+    .AddCommandHandler<MyCommandHandler>()
+    .AddCommandsFromResource("commands.json");
+```
+
+**Simple format** (no scope):
+```json
+{
+  "increment": ["add one", "count up", "increment"]
+}
+```
+
+**Extended format** (with scope):
+```json
+{
+  "increment": {
+    "scope": "/counter",
+    "phrases": ["add one", "count up", "increment"]
+  }
+}
+```
+
+Both formats can be mixed in the same file.
+
+### Implement `INabuCommandHandler`
+
+```csharp
+using Nabu;
+
+public class MyCommandHandler : INabuCommandHandler
+{
+    public Task OnCommandAsync(string commandId, string originalText)
+    {
+        Console.WriteLine($"Command: {commandId} (from: \"{originalText}\")");
+        return Task.CompletedTask;
+    }
+}
+```
+
+### Page-level command dispatch with `VoiceCommandRegistry`
+
+For finer-grained control, inject `VoiceCommandRegistry` into a page and register callbacks directly:
+
+```razor
+@inject VoiceCommandRegistry VoiceCommands
+@implements IDisposable
+
+@code {
+    protected override void OnInitialized()
+    {
+        VoiceCommands.Register("increment", text => { count++; StateHasChanged(); return Task.CompletedTask; });
+        VoiceCommands.Register("reset", text => { count = 0; StateHasChanged(); return Task.CompletedTask; });
+    }
+
+    public void Dispose()
+    {
+        VoiceCommands.Unregister("increment");
+        VoiceCommands.Unregister("reset");
+    }
+}
+```
+
+---
+
+## Voice Navigation
+
+Nabu can generate voice navigation phrases automatically from route mappings:
+
+```csharp
+builder.Services.AddNabu()
+    .AddNavigation(nav => nav
+        .Map("/", "home", "homepage")
+        .Map("/counter", "counter", "counting page"));
+```
+
+This automatically registers phrases like "go to the counter page", "navigate to home", "open the homepage", etc.
 
 ---
 
@@ -244,13 +359,13 @@ Override the overlay appearance with CSS custom properties:
 }
 ```
 
-All available variables are listed in `src/Nabu.RCL/wwwroot/css/speech-overlay.css`.
+All available variables are listed in `src/Nabu/wwwroot/css/speech-overlay.css`.
 
 ---
 
 ## Component parameters
 
-### `Nabu` / `NabuView`
+### `NabuAssistant`
 
 | Parameter            | Type   | Default | Description                      |
 |----------------------|--------|---------|----------------------------------|
@@ -262,7 +377,7 @@ All available variables are listed in `src/Nabu.RCL/wwwroot/css/speech-overlay.c
 
 Popular: English, German, French, Spanish, Italian, Portuguese, Chinese, Japanese, Korean, Hindi
 
-~45 additional languages are available via `WhisperLanguages.Extended`.
+~45 additional languages are available via `NabuLanguages.Extended`.
 
 ---
 
@@ -270,12 +385,17 @@ Popular: English, German, French, Spanish, Italian, Portuguese, Chinese, Japanes
 
 ```
 src/
-  Nabu.RCL/            # Razor Class Library (main library)
-  Nabu.Local/          # Optional server service (Whisper.net + SignalR)
+  Nabu/              # Razor Class Library (main library, NuGet: Nabu)
+  Nabu.Server/       # Server-side components: Tag Helper, ViewComponent, command map (NuGet: Nabu.Server)
+  Nabu.Core/         # Internal: audio processing, VAD, Whisper, wake-word
+  Nabu.Inference/    # Internal: inference interfaces, embedding, command store
+  Nabu.Local/        # Optional standalone server service (Whisper.net + SignalR)
 examples/
-  Nabu.BlazorDemo/     # Demo: Blazor Server
-  Nabu.RazorPagesDemo/ # Demo: Razor Pages
+  Nabu.BlazorDemo/        # Demo: Blazor Server
+  Nabu.BlazorWasmDemo/    # Demo: Blazor WebAssembly
+  Nabu.RazorPagesDemo/    # Demo: Razor Pages
+  Nabu.MauiDemo/          # Demo: .NET MAUI
 external/
-  silero-vad/          # Voice Activity Detection (git submodule, sparse)
-  NanoWakeWord/        # Wake-word detection (git submodule)
+  silero-vad/        # Voice Activity Detection (git submodule, sparse)
+  NanoWakeWord/      # Wake-word detection (git submodule)
 ```
