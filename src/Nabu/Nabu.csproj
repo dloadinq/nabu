@@ -5,7 +5,7 @@
         <Nullable>enable</Nullable>
         <ImplicitUsings>enable</ImplicitUsings>
         <WhisperPreferredInferenceBackend>browser</WhisperPreferredInferenceBackend>
-        <Version>1.0.0-preview.4</Version>
+        <Version>1.0.0-preview.5</Version>
         <Title>Nabu</Title>
         <Authors>dloadinq</Authors>
         <Description>Razor Class Library for Whisper speech-to-text in Blazor apps. Supports browser (WebGPU/WASM) and server backends.</Description>
