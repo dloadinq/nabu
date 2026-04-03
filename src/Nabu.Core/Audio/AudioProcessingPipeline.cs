@@ -59,7 +59,9 @@ public partial class AudioProcessingPipeline : IDisposable
     private CancellationTokenSource? _wakeWordReadyCts;
 
     private long _lastPreviewTimestamp;
-    private const int LivePreviewIntervalMs = 1000;
+    private long _recordingStartTimestamp;
+    private const int FirstLivePreviewDelayMs = 400;
+    private const int LivePreviewIntervalMs = 400;
     private const int MaxQueuedChunks = 64;
 
     private volatile string _preferredLanguage = "english";
@@ -273,6 +275,8 @@ public partial class AudioProcessingPipeline : IDisposable
         _logger.LogInformation("Starting speech recording...");
         _isRecording = true;
         _keywordDetected = false;
+        _discardNextTranscription = false;
+        _recordingStartTimestamp = Stopwatch.GetTimestamp();
         _lastPreviewTimestamp = Stopwatch.GetTimestamp();
         _recordingSession.StartRecording();
         SafeInvoke(OnStatusChanged, "Listening...");
@@ -281,6 +285,10 @@ public partial class AudioProcessingPipeline : IDisposable
     private void TryTriggerLivePreview()
     {
         if (!_isRecording || !_whisperTranscriber.IsInitialized()) return;
+
+        var timeSinceStartMs = Stopwatch.GetElapsedTime(_recordingStartTimestamp).TotalMilliseconds;
+        if (timeSinceStartMs < FirstLivePreviewDelayMs) return;
+
         if (Stopwatch.GetElapsedTime(_lastPreviewTimestamp).TotalMilliseconds <= LivePreviewIntervalMs) return;
 
         _lastPreviewTimestamp = Stopwatch.GetTimestamp();
@@ -343,6 +351,10 @@ public partial class AudioProcessingPipeline : IDisposable
                 string preview =
                     await _whisperTranscriber.TranscribeWithLanguageAsync(previewStream, _preferredLanguage);
                 preview = StripWakeWord(preview.Trim());
+                
+                // Filter Whisper artifacts from the real-time preview (e.g. asterisks, dots, bracketed phrases)
+                preview = WhisperArtifactRegex().Replace(preview, "").Trim();
+                
                 if (!string.IsNullOrEmpty(preview))
                     SafeInvoke(OnTranscriptionPreview, preview);
             }
@@ -366,7 +378,6 @@ public partial class AudioProcessingPipeline : IDisposable
         if (!await _finalizeLock.WaitAsync(0)) return;
         try
         {
-            long startTime = Stopwatch.GetTimestamp();
             _logger.LogInformation("Stopping recording and finalizing...");
             SetCooldown();
             _speechDetector.Reset();
@@ -380,37 +391,36 @@ public partial class AudioProcessingPipeline : IDisposable
                 if (recordingStream != null)
                 {
                     SafeInvoke(OnStatusChanged, "Initializing...");
-                    await _whisperLock.WaitAsync();
-                    try
+
+                    if (_whisperTranscriber.IsInitialized())
                     {
-                        if (_whisperTranscriber.IsInitialized())
-                        {
-                            var fullText =
-                                await _whisperTranscriber.TranscribeWithLanguageAsync(recordingStream,
-                                    _preferredLanguage);
-                            SafeInvoke(OnTranscriptionPreview, fullText.Trim());
+                        var rawBuffer = recordingStream.GetBuffer();
+                        var length = (int)recordingStream.Length;
+                        
+                        using var transcribeStream = new MemoryStream(rawBuffer, 0, length, false);
+                        using MemoryStream? translateStream = _translateCommands ? new MemoryStream(rawBuffer, 0, length, false) : null;
+                        
+                        var transcribeTask = _whisperTranscriber.TranscribeWithLanguageAsync(transcribeStream, _preferredLanguage);
+                        var translateTask = translateStream != null
+                            ? _whisperTranscriber.TranslateToEnglishAsync(translateStream, _preferredLanguage)
+                            : Task.FromResult(string.Empty);
 
-                            string final = StripWakeWord(fullText.Trim());
+                        // Ensure both tasks complete before the using-scoped streams are disposed
+                        await Task.WhenAll(transcribeTask, translateTask);
 
-                            string? translatedFinal = null;
-                            if (_translateCommands && !string.IsNullOrEmpty(final))
-                            {
-                                recordingStream.Position = 0;
-                                var translatedText = await _whisperTranscriber.TranslateToEnglishAsync(recordingStream, _preferredLanguage);
-                                translatedFinal = StripWakeWord(translatedText.Trim());
-                            }
+                        var fullText = transcribeTask.Result;
+                        SafeInvoke(OnTranscriptionPreview, fullText.Trim());
 
-                            if (!string.IsNullOrEmpty(final) && !_discardNextTranscription)
-                                SafeInvoke(OnTranscriptionFinal, final, translatedFinal);
-                            
-                            TimeSpan elapsed = Stopwatch.GetElapsedTime(startTime);
-                            _logger.LogInformation("Transcription done. Duration: {ElapsedMs:F2}ms", elapsed.TotalMilliseconds);
-                            _discardNextTranscription = false;
-                        }
-                    }
-                    finally
-                    {
-                        _whisperLock.Release();
+                        string final = StripWakeWord(fullText.Trim());
+
+                        string? translatedFinal = _translateCommands
+                            ? StripWakeWord(translateTask.Result.Trim())
+                            : null;
+
+                        if (!string.IsNullOrEmpty(final) && !_discardNextTranscription)
+                            SafeInvoke(OnTranscriptionFinal, final, translatedFinal);
+                        
+                        _discardNextTranscription = false;
                     }
 
                     await recordingStream.DisposeAsync();
@@ -462,6 +472,9 @@ public partial class AudioProcessingPipeline : IDisposable
 
     [GeneratedRegex(@"^v\d")]
     private static partial Regex VersionPartRegex();
+
+    [GeneratedRegex(@"\[.*?\]|\(.*?\)|[*]|[.]{2,}")]
+    private static partial Regex WhisperArtifactRegex();
 
     /// <summary>
     /// Updates the preferred transcription language used for all subsequent Whisper calls.

@@ -48,21 +48,21 @@ cd ../..
 
 **Blazor Server / Blazor WebAssembly:**
 ```bash
-dotnet add package Nabu --version 1.0.0-preview.4
+dotnet add package Nabu --version 1.0.0-preview.6
 ```
 
 **Razor Pages (also includes Blazor support):**
 ```bash
-dotnet add package Nabu.Server --version 1.0.0-preview.4
+dotnet add package Nabu.Server --version 1.0.0-preview.5
 ```
 
 Or in your `.csproj`:
 
 ```xml
 <ItemGroup>
-  <PackageReference Include="Nabu" Version="1.0.0-preview.4" />
+  <PackageReference Include="Nabu" Version="1.0.0-preview.6" />
   <!-- or for Razor Pages: -->
-  <PackageReference Include="Nabu.Server" Version="1.0.0-preview.4" />
+  <PackageReference Include="Nabu.Server" Version="1.0.0-preview.5" />
 </ItemGroup>
 ```
 
@@ -179,7 +179,7 @@ Place this before the closing `</body>` tag.
 <nabu-assistant show-language-select="true"></nabu-assistant>
 
 <script>
-    window.addEventListener('whisper:transcriptionFinal', event => {
+    window.addEventListener('nabu:transcriptionFinal', event => {
         const text = (event.detail || '').trim();
         if (!text) return;
 

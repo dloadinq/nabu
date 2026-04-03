@@ -13,7 +13,7 @@ public class SampleAgentService : INabuHandler
 
     public Task OnTranscriptionReadyAsync(string text)
     {
-        _logger.LogInformation("[{Time}] Received: {Text}", DateTime.Now, text);
+        _logger.LogInformation("Received: {Text}", text);
         return OnTranscriptionReceived?.Invoke(text) ?? Task.CompletedTask;
     }
 }

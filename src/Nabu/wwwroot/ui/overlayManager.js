@@ -66,6 +66,8 @@ function startNoSpeechTimer() {
         _noSpeechTimer = null;
         _noSpeechFired = true;
 
+        appState.suppressTranscription = true;
+
         updateState({
             isCancelling: true,
             overlayStatus: 'Cancelling...',
@@ -76,7 +78,7 @@ function startNoSpeechTimer() {
         });
         
         try {
-            stopLive();
+            await stopLiveKeepConnection();
         } catch (error) {
             console.log("Error stopping live audio on no speech timeout", error);
         }
@@ -94,7 +96,12 @@ function startNoSpeechTimer() {
             });
             const msg = TERMINATION_TEXT;
             showToast(msg, 4000);
-            emitTranscriptionFinal(msg);
+            emitTranscriptionFinal(msg, true);
+            
+            appState.suppressTranscription = false;
+            try {
+                await restartLive();
+            } catch {}
         }, NoSpeechCancelDismissMs);
 
     }, NoSpeechTimeoutMs);
@@ -245,6 +252,10 @@ export async function cancelByUser() {
     clearOpenDelayTimer();
     clearDismissTimer();
 
+    _noSpeechFired = false;
+    _userCancelFired = false;
+
+
     if (appState.dotNetHelper) {
         appState.dotNetHelper.invokeMethodAsync('JSCallback_SetManualCancelBlock', true);
     }
@@ -287,6 +298,7 @@ export async function cancelByUser() {
             appState.dotNetHelper.invokeMethodAsync('JSCallback_SetManualCancelBlock', false);
         }
         _userCancelFired = false;
+        appState.suppressTranscription = false;
 
         try {
             await restartLive();

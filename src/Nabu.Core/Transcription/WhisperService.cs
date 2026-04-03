@@ -19,12 +19,15 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
     : IWhisperTranscriber, IAsyncDisposable
 {
     private readonly SemaphoreSlim _transcribeLock = new(1, 1);
+    private readonly SemaphoreSlim _translateLock = new(1, 1);
     private readonly SemaphoreSlim _initLock = new(1, 1);
 
     private WhisperFactory? _factory;
     private WhisperProcessor? _transcribeProcessor;
     private WhisperProcessor? _translateProcessor;
-    private string _language = language;
+    
+    private string _transcribeLanguage = language;
+    private string _translateLanguage = language;
     private bool _initialized;
 
     /// <inheritdoc/>
@@ -63,21 +66,23 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
     {
         _transcribeProcessor?.Dispose();
         _translateProcessor?.Dispose();
-        _transcribeProcessor = _factory!.CreateBuilder().WithLanguage(_language).Build();
-        _translateProcessor = _factory!.CreateBuilder().WithLanguage(_language).WithTranslate().Build();
+        _transcribeProcessor = _factory!.CreateBuilder().WithLanguage(_transcribeLanguage).Build();
+        _translateProcessor = _factory!.CreateBuilder().WithLanguage(_translateLanguage).WithTranslate().Build();
     }
 
     /// <inheritdoc/>
     public async Task SetLanguageAsync(string language)
     {
-        if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase)) return;
-
         await _transcribeLock.WaitAsync();
+        await _translateLock.WaitAsync();
         try
         {
-            if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase)) return;
-            logger.LogInformation("Language changed: {Old} -> {New}", _language, language);
-            _language = language;
+            if (string.Equals(_transcribeLanguage, language, StringComparison.OrdinalIgnoreCase) && 
+                string.Equals(_translateLanguage, language, StringComparison.OrdinalIgnoreCase)) return;
+                
+            logger.LogInformation("Language changed to {New}", language);
+            _transcribeLanguage = language;
+            _translateLanguage = language;
 
             if (_initialized && _factory != null)
             {
@@ -86,6 +91,7 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
         }
         finally
         {
+            _translateLock.Release();
             _transcribeLock.Release();
         }
     }
@@ -97,7 +103,7 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
     /// <returns>The transcribed text, or an empty string if no speech was detected.</returns>
     public async Task<string> TranscribeAsync(Stream audioStream)
     {
-        return await TranscribeWithLanguageAsync(audioStream, _language);
+        return await TranscribeWithLanguageAsync(audioStream, _transcribeLanguage);
     }
 
     /// <inheritdoc/>
@@ -107,7 +113,7 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
         try
         {
             await EnsureInitializedAsync();
-            RebuildIfLanguageChanged(language);
+            RebuildTranscribeIfLanguageChanged(language);
             var result = await RunProcessorAsync(_transcribeProcessor!, audioStream);
             return result;
         }
@@ -120,26 +126,37 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
     /// <inheritdoc/>
     public async Task<string> TranslateToEnglishAsync(Stream audioStream, string language)
     {
-        await _transcribeLock.WaitAsync();
+        await _translateLock.WaitAsync();
         try
         {
             await EnsureInitializedAsync();
-            RebuildIfLanguageChanged(language);
+            RebuildTranslateIfLanguageChanged(language);
             return await RunProcessorAsync(_translateProcessor!, audioStream);
         }
         finally
         {
-            _transcribeLock.Release();
+            _translateLock.Release();
         }
     }
 
-    private void RebuildIfLanguageChanged(string language)
+    private void RebuildTranscribeIfLanguageChanged(string language)
     {
-        if (string.Equals(_language, language, StringComparison.OrdinalIgnoreCase) || _factory == null)
+        if (string.Equals(_transcribeLanguage, language, StringComparison.OrdinalIgnoreCase) || _factory == null)
             return;
 
-        _language = language;
-        BuildProcessors();
+        _transcribeLanguage = language;
+        _transcribeProcessor?.Dispose();
+        _transcribeProcessor = _factory!.CreateBuilder().WithLanguage(language).Build();
+    }
+    
+    private void RebuildTranslateIfLanguageChanged(string language)
+    {
+        if (string.Equals(_translateLanguage, language, StringComparison.OrdinalIgnoreCase) || _factory == null)
+            return;
+
+        _translateLanguage = language;
+        _translateProcessor?.Dispose();
+        _translateProcessor = _factory!.CreateBuilder().WithLanguage(language).WithTranslate().Build();
     }
 
     private static async Task<string> RunProcessorAsync(WhisperProcessor processor, Stream audioStream)
@@ -153,6 +170,7 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
     public async ValueTask DisposeAsync()
     {
         await _transcribeLock.WaitAsync();
+        await _translateLock.WaitAsync();
         try
         {
             if (_transcribeProcessor != null) await _transcribeProcessor.DisposeAsync();
@@ -161,9 +179,11 @@ public class WhisperService(string language, string modelPath, ILogger<WhisperSe
         }
         finally
         {
+            _translateLock.Release();
             _transcribeLock.Release();
         }
 
+        _translateLock.Dispose();
         _transcribeLock.Dispose();
         _initLock.Dispose();
     }
