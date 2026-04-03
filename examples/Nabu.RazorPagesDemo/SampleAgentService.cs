@@ -16,7 +16,7 @@ public class SampleAgentService : INabuHandler
         if (string.Equals(text, NabuConstants.TerminationText, StringComparison.OrdinalIgnoreCase))
             return Task.CompletedTask;
 
-        _logger.LogInformation("SampleAgentService received: {Text}", text);
+        _logger.LogInformation("[{Time}] Received: {Text}", DateTime.Now, text);
 
         return Task.CompletedTask;
     }

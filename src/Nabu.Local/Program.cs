@@ -84,7 +84,6 @@ var app = builder.Build();
 app.UseCors("NabuLocalCors");
 
 var statusHtml = StatusPageHandler.BuildStatusPage(
-    app.Services.GetRequiredService<GpuInfo>(),
     app.Services.GetRequiredService<LoadedModelInfo>(),
     app.Services.GetRequiredService<IOptions<NabuLocalOptions>>().Value);
 

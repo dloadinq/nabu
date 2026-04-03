@@ -69,19 +69,19 @@ async function startServiceMode() {
 }
 
 async function startBrowserMode() {
-    initBrowserBackend();
-
     try {
         appState.currentAnalyserNode = await startAudioCapture(handleBrowserAudioFrame);
     } catch (micError) {
         handleMicError(micError);
     }
 
-    if (stateMachine.transition(STATES.LISTENING)) {
-        startWakeWordEngine(onWakeWordDetected);
-    } else {
-        renderStatus(STATES.LISTENING);
-    }
+    initBrowserBackend(() => {
+        if (stateMachine.transition(STATES.LISTENING)) {
+            startWakeWordEngine(onWakeWordDetected);
+        } else {
+            renderStatus(STATES.LISTENING);
+        }
+    });
 }
 
 export async function startLiveTranscription(userOptions = {}) {

@@ -1,6 +1,5 @@
 using System.Runtime.InteropServices;
 using Nabu.Core.Config;
-using Nabu.Core.Hardware;
 using Nabu.Core.Models;
 
 namespace Nabu.Local;
@@ -8,7 +7,6 @@ namespace Nabu.Local;
 internal static class StatusPageHandler
 {
     public static string BuildStatusPage(
-        GpuInfo gpuInfo,
         LoadedModelInfo loadedModel,
         NabuLocalOptions options)
     {

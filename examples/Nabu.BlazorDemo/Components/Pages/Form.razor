@@ -1,0 +1,151 @@
+﻿@page "/form"
+@using System.IdentityModel.Tokens.Jwt
+@using System.ComponentModel.DataAnnotations
+@inject IHttpContextAccessor HttpContextAccessor
+@inject VoiceCommandRegistry VoiceCommands
+@inject NavigationManager NavManager
+@implements IDisposable
+@rendermode InteractiveServer
+
+<PageTitle>Smart Form</PageTitle>
+
+<div class="container mt-4">
+    <h1>Member Registration</h1>
+    <p class="text-muted">Fill out the form manually or use the voice command "Fill out the form".</p>
+
+    @if (_showSuccessMessage)
+    {
+        <div class="alert alert-success alert-dismissible fade show" role="alert">
+            <strong>Success!</strong> Form submitted for <b>@_userModel.FirstName @_userModel.LastName</b>.
+            <button type="button" class="btn-close" @onclick="() => _showSuccessMessage = false" aria-label="Close"></button>
+        </div>
+    }
+
+    <EditForm EditContext="@_editContext" OnValidSubmit="HandleManualSubmit">
+        <DataAnnotationsValidator />
+        <ValidationSummary class="text-danger" />
+
+        <div class="mb-3">
+            <label class="form-label">First Name:</label>
+            <InputText @bind-Value="_userModel.FirstName" class="form-control" placeholder="e.g. John" />
+            <ValidationMessage For="@(() => _userModel.FirstName)" />
+        </div>
+        
+        <div class="mb-3">
+            <label class="form-label">Last Name:</label>
+            <InputText @bind-Value="_userModel.LastName" class="form-control" placeholder="e.g. Smith" />
+            <ValidationMessage For="@(() => _userModel.LastName)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Phone Number:</label>
+            <InputText @bind-Value="_userModel.Phone" class="form-control" placeholder="+1 (555) 000-0000" />
+            <ValidationMessage For="@(() => _userModel.Phone)" />
+        </div>
+
+        <div class="mb-3">
+            <label class="form-label">Date of Birth:</label>
+            <InputDate @bind-Value="_userModel.Birthday" class="form-control" />
+            <ValidationMessage For="@(() => _userModel.Birthday)" />
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit</button>
+        <button type="button" class="btn btn-outline-secondary ms-2" @onclick="ResetUser">Generate New User</button>
+    </EditForm>
+</div>
+
+<NabuAssistant />
+
+@code {
+    private UserFormModel _userModel = new();
+    private EditContext? _editContext;
+    private const string CookieName = "DemoUserToken";
+    private bool _showSuccessMessage = false;
+
+    protected override void OnInitialized()
+    {
+        _editContext = new EditContext(_userModel);
+
+        var cookie = HttpContextAccessor.HttpContext?.Request.Cookies[CookieName];
+        if (string.IsNullOrEmpty(cookie))
+        {
+            NavManager.NavigateTo("/set-demo-cookie", forceLoad: true);
+            return;
+        }
+
+        VoiceCommands.Register("fillout_form_data", _ => InvokeAsync(() =>
+        {
+            FillOutFormFromCookie();
+            StateHasChanged();
+        }));
+    }
+
+    private void FillOutFormFromCookie()
+    {
+        var cookie = HttpContextAccessor.HttpContext?.Request.Cookies[CookieName];
+        if (!string.IsNullOrEmpty(cookie))
+        {
+            try 
+            {
+                var handler = new JwtSecurityTokenHandler();
+                if (handler.ReadToken(cookie) is JwtSecurityToken jsonToken)
+                {
+                    _userModel.FirstName = jsonToken.Claims.FirstOrDefault(c => c.Type == "FirstName")?.Value ?? "";
+                    _userModel.LastName = jsonToken.Claims.FirstOrDefault(c => c.Type == "LastName")?.Value ?? "";
+                    _userModel.Phone = jsonToken.Claims.FirstOrDefault(c => c.Type == "Phone")?.Value ?? "";
+
+                    var bdayStr = jsonToken.Claims.FirstOrDefault(c => c.Type == "Birthday")?.Value;
+                    if (DateTime.TryParse(bdayStr, out var bday))
+                    {
+                        _userModel.Birthday = bday;
+                    }
+                    _showSuccessMessage = false;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"JWT Error: {ex.Message}");
+            }
+        }
+    }
+
+    private void HandleManualSubmit() => ProcessFormSubmission();
+
+    private void ProcessFormSubmission()
+    {
+        _showSuccessMessage = false;
+
+        if (_editContext != null && _editContext.Validate())
+        {
+            _showSuccessMessage = true;
+            Console.WriteLine($"Form Processed: {_userModel.FirstName} {_userModel.LastName}");
+        }
+    }
+
+    private void ResetUser()
+    {
+        NavManager.NavigateTo("/set-demo-cookie", forceLoad: true);
+    }
+
+    public void Dispose()
+    {
+        VoiceCommands.Unregister("fillout_form_data");
+    }
+
+    public class UserFormModel
+    {
+        [Required(ErrorMessage = "First name is required")]
+        [StringLength(50, MinimumLength = 2, ErrorMessage = "Name is too short")]
+        public string FirstName { get; set; } = "";
+
+        [Required(ErrorMessage = "Last name is required")]
+        public string LastName { get; set; } = "";
+
+        [Required(ErrorMessage = "Please select a birthday")]
+        public DateTime? Birthday { get; set; }
+
+        [Required(ErrorMessage = "Phone number is required")]
+        [Phone(ErrorMessage = "Please enter a valid US phone number")]
+        public string Phone { get; set; } = "";
+    }
+}

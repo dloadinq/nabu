@@ -7,6 +7,7 @@ var builder = WebAssemblyHostBuilder.CreateDefault(args);
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
 builder.Services.AddNabu()
+    .AddHandler<SampleAgentService>()
     .AddNavigation(nav => nav
         .Map("/", "home", "homepage", "start")
         .Map("/counter", "counter")

@@ -366,6 +366,7 @@ public partial class AudioProcessingPipeline : IDisposable
         if (!await _finalizeLock.WaitAsync(0)) return;
         try
         {
+            long startTime = Stopwatch.GetTimestamp();
             _logger.LogInformation("Stopping recording and finalizing...");
             SetCooldown();
             _speechDetector.Reset();
@@ -401,6 +402,9 @@ public partial class AudioProcessingPipeline : IDisposable
 
                             if (!string.IsNullOrEmpty(final) && !_discardNextTranscription)
                                 SafeInvoke(OnTranscriptionFinal, final, translatedFinal);
+                            
+                            TimeSpan elapsed = Stopwatch.GetElapsedTime(startTime);
+                            _logger.LogInformation("Transcription done. Duration: {ElapsedMs:F2}ms", elapsed.TotalMilliseconds);
                             _discardNextTranscription = false;
                         }
                     }

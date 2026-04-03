@@ -21,7 +21,12 @@ const TOAST_TINY_MODEL = 'Warning: WebGPU unavailable. Falling back to smaller m
 
 let hasLoadedModelOnce = false;
 
-export function initBrowserBackend() {
+export function initBrowserBackend(onModelReady) {
+    if (hasLoadedModelOnce) {
+        if (onModelReady) onModelReady();
+        return;
+    }
+
     initWorkerClient((device, model) => {
         emitBackendChanged(`browser (${device === 'webgpu' ? 'WebGPU' : 'WASM'})`);
         emitStatusMessage('');
@@ -34,6 +39,8 @@ export function initBrowserBackend() {
                 showToast('Successfully loaded browser model. Say "Hey Jarvis" to begin.', 5000);
             }
         }
+
+        if (onModelReady) onModelReady();
     });
     loadModelInWorker();
 }

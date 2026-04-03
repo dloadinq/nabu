@@ -56,7 +56,11 @@ self.onmessage = async (e) => {
 
         const {audio, options} = payload;
         try {
+            const startTime = performance.now();
             const result = await whisperPipeline(audio, options);
+            const elapsedMs = performance.now() - startTime;
+            const elapsedS = elapsedMs / 1000;
+            console.log(`[Worker] Inference done. Duration: ${elapsedMs.toFixed(2)}ms / ${elapsedS.toFixed(2)}s`);
 
             self.postMessage(
                 {

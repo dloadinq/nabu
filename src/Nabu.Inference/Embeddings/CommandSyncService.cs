@@ -64,7 +64,7 @@ public sealed class CommandSyncService(
     private const string Fillers =
         "please|hey|hi|OK|ok|okay|" +
         "jarvis|alexa|siri|cortana|computer|assistant|bot|buddy|friend|" +
-        "i'm|i'll|i've|i'd|i|you|we|they|he|she|it";
+        "i'm|i'll|i've|i'd|i|me|you|we|they|he|she|it";
 
     private static readonly Regex FillerRegex = new(
         $@"^\s*\b({Fillers})\b[.,!?]?\s*|"

@@ -1,0 +1,47 @@
+﻿{
+  "increment": {
+    "scope": "/counter",
+    "phrases": [
+      "increment the counter",
+      "increment the counter by one",
+      "increase the counter",
+      "increase the counter by one",
+      "increase the count",
+      "add one to the counter",
+      "plus one to the counter",
+      "count up by one",
+      "raise the counter",
+      "raise the counter by one",
+      "raise the number by one"
+    ]
+  },
+  "reset": {
+    "scope": "/counter",
+    "phrases": [
+      "reset the counter",
+      "reset the counter to zero",
+      "set the counter to zero",
+      "clear the counter",
+      "start the counter over",
+      "zero out the counter"
+    ]
+  },
+  "fillout_form_data": {
+    "scope": "/form",
+    "phrases": [
+      "fill out the form with my data",
+      "fill out the form",
+      "fill out my data",
+      "fill in my data",
+      "fill in the form",
+      "populate the form with my data",
+      "auto-fill the form with my data",
+      "complete the form with my data",
+      "enter my data into the form",
+      "enter my data",
+      "fill the form with my data",
+      "use my data",
+      "insert my personal data"
+    ]
+  }
+}
